@@ -1,10 +1,32 @@
 # Crosschain Fund Flow
 
+## 中文简介
+
+Crosschain Fund Flow 是一个用于链上资金追踪的 Codex Skill，面向 Solana、EVM 链、跨链桥订单簿、交易所地址和平台钱包等场景。
+
+它的目标不是简单罗列交易，而是帮助调查者从地址或交易哈希出发，还原主要资金路径，识别跨链桥、DEX 路由、平台钱包和复杂交易，并用偏白话的方式说明“钱从哪里来、去了哪里、为什么在这里停止追踪”。
+
+默认流程会在跨链落地后只做第一层检查；如果资金继续转出，会先询问用户是否继续展开。对于 CEX、Hyperliquid、ChangeNOW、FixedFloat 等平台钱包，会标记为平台闭环，不默认追踪平台内部账本。
+
+作者：[SnowBar / @SNOWBAR0_0](https://x.com/SNOWBAR0_0)
+
+## English Introduction
+
 Crosschain Fund Flow is a Codex skill for tracing crypto fund movement across Solana, EVM chains, bridge orderbooks, exchanges, and platform wallets.
 
 It is designed for practical investigation work: start from an address or transaction, reconstruct the main fund path, explain complex swaps or bridge records in plain language, and stop at the right point instead of pretending every router, pool, or platform ledger is a final wallet.
 
 Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
+
+## 功能概览
+
+- 追踪 Solana 与 EVM 地址在指定时间窗口内的资金流。
+- 通过 Relay、Mayan、Gas.zip、deBridge、THORChain、NEAR Intents、ChangeNOW、FixedFloat 等桥或服务继续闭环。
+- 优先使用跨链桥订单簿确认目标链、目标地址和到账交易，不靠猜。
+- 遇到 CEX、平台钱包、Hyperliquid 账户或桥基础设施时做标记并停止。
+- 发现落地地址继续转出时，默认暂停并询问是否继续追。
+- 解释 Solana CPI、DEX swap、EVM multicall、`transferFrom`、token account close、internal transfer 等不直观交易。
+- 默认输出偏白话；用户需要时再切换为更专业的证据型报告。
 
 ## What It Does
 
@@ -100,4 +122,3 @@ references/
 ## Author
 
 Built and maintained by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
-
