@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+arkham_chrome_profile/
+arkham_capture_output/
+*.log
+.DS_Store
