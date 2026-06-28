@@ -30,9 +30,9 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## 执行边界
 
-这个项目首先是调查流程与判断规则 skill，不是一个内置全链索引器。对于少量地址或交易，它会优先使用 API/RPC/订单簿直接追踪；对于 mint 前几小时 top-N、批量 token account owner 归因、Excel 标签交集、分页聚合这类任务，skill 会先说明这是批量分析，需要执行层，然后询问是否使用临时脚本、外部索引器或缩小范围。
+这个项目带有可运行的 Python 执行器，用于 Solana 地址追踪、EVM 第一层追踪、跨链桥订单查询、Solana mint top-N 参与者分析和标签匹配。它不是全链索引器；遇到超大范围分页、缺 API 权限、跨链桥未公开订单簿或平台内部账本时，会说明缺口并给出下一步需要的 API、订单簿或授权入口。
 
-它不会默认在用户项目里创建本地脚本。
+它不会默认在用户项目里临时创建本地脚本；批量分析会优先调用 skill 自带的 `scripts/` 执行器。
 
 ## What It Does
 
@@ -46,9 +46,9 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## Execution Boundary
 
-This is primarily an investigation workflow and decision-rule skill, not a bundled full-chain indexer. For small address or transaction checks, it should use APIs/RPC/orderbooks directly. For mint launch top-N analysis, large token-account owner attribution, spreadsheet label intersections, and paginated aggregation, it should first state that bulk analysis needs an execution layer and ask whether to use a temporary script, external indexer, or narrower scope.
+This skill includes runnable Python executors for Solana wallet traces, EVM first-layer traces, bridge order lookups, Solana mint top-N participant analysis, and label matching. It is not a full-chain indexer. For very large pagination jobs, missing API permissions, unavailable bridge orderbooks, or platform-internal ledgers, it should explain the gap and state what API, orderbook, or authorized session is needed next.
 
-It should not silently create local scripts inside a user project.
+It should not silently create temporary scripts inside a user's project. Bulk analysis should use the bundled `scripts/` executors first.
 
 ## Output Philosophy
 
@@ -72,6 +72,7 @@ Recommended optional providers:
 - Blockscout PRO API for broad EVM coverage and fallback.
 - Alchemy Transfers API for fast EVM address-level scans.
 - Solscan, Helius, or Solana RPC for Solana transaction verification.
+- Public OKX/APIBase and Binance Web3 market endpoints for Solana/EVM token holder snapshots, token metadata, price, market cap, holder count, funding-source hints, and top-holder fallback.
 - Arkham logged-in browser session for entity labels only, especially ChangeNOW, FixedFloat, NEAR Intents, CEX labels, and hot-wallet attribution.
 - Bridge orderbooks for Relay, Mayan, Gas.zip, deBridge, THORChain, and NEAR Intents.
 
@@ -109,7 +110,6 @@ The skill will only ask for the API keys needed for the current task.
 Common environment variables:
 
 ```text
-SOLSCAN_API_KEY=
 HELIUS_API_KEY=
 ETHERSCAN_API_KEY=
 BLOCKSCOUT_API_KEY=
@@ -117,6 +117,8 @@ ALCHEMY_API_KEY=
 ROUTESCAN_API_KEY=
 ARKHAM_CAPTURE_PROFILE=
 ```
+
+Solscan Pro is not part of the default setup because it usually requires a paid key. If you do have paid Pro access, set `SOLSCAN_API_KEY` and explicitly select Solscan, or set `CFF_ENABLE_SOLSCAN_PRO_AUTO=1` to let `auto` try it.
 
 Never provide private keys, seed phrases, wallet signatures, cookies, browser localStorage, or raw session headers.
 

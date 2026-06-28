@@ -26,6 +26,10 @@ from common import (
 DEFAULT_RPC = "https://api.mainnet-beta.solana.com"
 
 
+def solscan_pro_auto_enabled() -> bool:
+    return os.getenv("CFF_ENABLE_SOLSCAN_PRO_AUTO") in ("1", "true", "TRUE", "yes", "YES")
+
+
 def fetch_solscan_transfers(address: str, start: int | None, end: int | None, limit: int) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     page_size = 100
@@ -176,11 +180,18 @@ def main() -> None:
     end = parse_time(args.to_time, args.timezone)
 
     used_source = args.source
-    if args.source in ("auto", "solscan") and os.getenv("SOLSCAN_API_KEY"):
+    if args.source == "solscan" and os.getenv("SOLSCAN_API_KEY"):
         events = normalize_solscan(fetch_solscan_transfers(args.address, start, end, args.limit), args.address)
         used_source = "solscan"
     elif args.source == "solscan":
         raise RuntimeError("SOLSCAN_API_KEY is required for --source solscan")
+    elif args.source == "auto" and solscan_pro_auto_enabled() and os.getenv("SOLSCAN_API_KEY"):
+        try:
+            events = normalize_solscan(fetch_solscan_transfers(args.address, start, end, args.limit), args.address)
+            used_source = "solscan"
+        except Exception:
+            events = fetch_rpc_activity(args.address, start, end, args.limit, args.rpc_url)
+            used_source = "solana_rpc"
     else:
         events = fetch_rpc_activity(args.address, start, end, args.limit, args.rpc_url)
         used_source = "solana_rpc"

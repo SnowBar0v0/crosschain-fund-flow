@@ -106,7 +106,16 @@ Metric:
 
 - If the user says buy/participation/position/holding in Chinese or English, use `top_net_buyers`.
 - If the user says volume/turnover/gross buy volume in Chinese or English, use `top_gross_buy_volume`.
+- If the user asks for current holders, holder ranking, holder percentage, market cap, or asks to use holder APIs, use `top_current_holders` and allow `--provider market_holders` or `--provider auto`.
 - If unclear, default to `top_net_buyers` and state it.
+
+Provider:
+
+- Use `--provider auto` by default.
+- Do not assume Solscan Pro is available in `auto`; ordinary Solscan keys may not have token-transfer index permissions.
+- Use `--provider solscan` only when the user explicitly says they have paid Pro access or wants to force Solscan. `auto` may try paid Pro only when `CFF_ENABLE_SOLSCAN_PRO_AUTO=1` is set.
+- Fall back to market holder snapshot when the task can be answered or partially answered from holder/current-position data.
+- If the user specifically asks for historical net buyers in an exact launch window, label market holder fallback as approximate/current snapshot coverage.
 
 Window:
 

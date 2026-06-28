@@ -109,7 +109,7 @@ def solana_rpc(method: str, params: list[Any], rpc_url: str) -> Any:
 def solscan_json(path: str, *, params: dict[str, Any] | None = None, api_key: str | None = None) -> Any:
     key = api_key or os.getenv("SOLSCAN_API_KEY")
     if not key:
-        raise ToolError("Missing SOLSCAN_API_KEY. This command requires Solscan Pro indexed data.")
+        raise ToolError("Missing SOLSCAN_API_KEY for Solscan Pro endpoint.")
     headers = {"token": key}
     return http_json(f"https://pro-api.solscan.io/v2.0/{path.lstrip('/')}", params=params, headers=headers)
 

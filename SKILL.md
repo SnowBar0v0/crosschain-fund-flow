@@ -11,7 +11,7 @@ Act as a careful chain-analysis operator. Establish transaction facts first, the
 
 Default to a plain-language report. Use professional/forensic detail only when the user asks for it or when a complex transaction needs explanation.
 
-This skill is a workflow and investigation skill, not a bundled full-chain indexer. It currently provides procedures, classification rules, report style, and bridge/orderbook knowledge. It does not include a built-in executable collector for every bulk task. For any task requiring pagination, aggregation, top-N ranking, spreadsheet joins, or large-scale token-account owner attribution, read `references/execution-boundaries.md` before creating or running scripts.
+This skill includes runnable executors for the common trace paths, but it is not a full-chain indexer. For large jobs, use the bundled `scripts/` executors first and report provider coverage clearly. For unsupported pagination, missing orderbooks, platform-internal ledgers, or data that no configured provider exposes, read `references/execution-boundaries.md` before creating any temporary scripts.
 
 ## Required First Steps
 
@@ -38,7 +38,8 @@ This skill is a workflow and investigation skill, not a bundled full-chain index
 Use the best available factual source for the chain, and make the source visible in the report.
 
 - Solana:
-  - Prefer Solscan Pro or a reliable enhanced Solana API when configured.
+  - Do not assume Solscan Pro is available; it usually requires a paid key. Use it only when the user explicitly provides paid Pro access, selects Solscan, or sets `CFF_ENABLE_SOLSCAN_PRO_AUTO=1`.
+  - For Solana mint holder/current-position analysis, use public market holder providers (OKX/APIBase and Binance Web3 endpoints bundled in `trace_solana_mint_participants.py`) as the default no-key fallback.
   - Use Solana RPC for signatures, transaction details, token account balances, and verification.
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 

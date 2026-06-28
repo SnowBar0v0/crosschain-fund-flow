@@ -14,6 +14,7 @@ top_gross_buy_volume  = wallets with largest total token bought, ignoring later 
 top_funders           = wallets that funded participant wallets with SOL/USDC/USDT
 top_profit_takers     = wallets with largest stable/SOL outflow after selling
 top_flow_value        = wallets ranked by estimated SOL/stable value moved
+top_current_holders   = current holder snapshot ranked by holder percentage or token amount
 ```
 
 Default if the user says "mint top participants fund flow" without a metric:
@@ -42,6 +43,19 @@ For every token movement:
 3. Attribute balance deltas using `preTokenBalances/postTokenBalances.owner`.
 4. Check token-account signatures when owner-address signatures do not show later movement.
 5. Track SOL/WSOL, USDC, USDT, and native fee/rent separately.
+
+## Provider Fallbacks
+
+For mint participant tasks, do not assume Solscan Pro is mandatory.
+
+Provider order:
+
+1. Public market holder providers (OKX/APIBase holders plus Binance Web3 meta/dynamic info) for no-key `top_current_holders`, market cap, price, holders count, creation/launch time, funding-source hints, buy/sell counts, PnL fields, and current top-holder label matching.
+2. Helius or another available historical/enhanced transaction index for exact `top_net_buyers` and `top_gross_buy_volume` during a launch window.
+3. Solana RPC verification for signatures, transactions, token balance deltas, owner attribution, and spot checks.
+4. Solscan Pro only when the user explicitly has paid Pro access or forces the Solscan provider. Do not rely on it in default `auto` mode for ordinary users.
+
+When using market holder fallback for a historical-window request, clearly state that it is a current holder snapshot rather than a complete historical transfer index. Exclude liquidity pools, authorities, routers, and vault-like holder rows from participant rankings by default, but keep them in evidence as excluded infrastructure.
 
 ## JAK Or Label-Sheet Matching
 

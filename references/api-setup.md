@@ -11,7 +11,6 @@ Never ask for private keys, seed phrases, wallet signatures, cookies, browser lo
 ## Recommended Environment Variables
 
 ```text
-SOLSCAN_API_KEY=
 HELIUS_API_KEY=
 ETHERSCAN_API_KEY=
 BLOCKSCOUT_API_KEY=
@@ -21,6 +20,13 @@ ARKHAM_CAPTURE_PROFILE=
 ```
 
 All are optional until a task needs that provider. Keep secrets in the runtime environment or `.env` excluded from git.
+
+Solscan Pro is a paid/permissioned path. Do not ask first-time users for `SOLSCAN_API_KEY` by default. Mention it only if the user says they have paid Pro access, wants to force Solscan, or needs a historical token-transfer index that no configured free provider can cover. To let auto mode try a paid Pro key, use:
+
+```text
+SOLSCAN_API_KEY=
+CFF_ENABLE_SOLSCAN_PRO_AUTO=1
+```
 
 ## What To Ask The User To Get
 
@@ -66,10 +72,11 @@ Use RPC/receipt calls for single-transaction verification.
 
 ### Solana Providers
 
-Use Solscan Pro, Helius, or Solana RPC depending on availability:
+Use public market holder providers, Helius, or Solana RPC by default. Use Solscan Pro only when explicitly available:
 
-- Solscan/Helius are better for enhanced decoded transaction data.
+- Solscan Pro/Helius are better for enhanced decoded transaction data, but Solscan Pro usually requires paid access.
 - Solana RPC is enough for signatures, parsed transactions, balances, token-account owner checks, and verification.
+- Public OKX/APIBase and Binance Web3 market endpoints can provide token holder snapshots, token metadata, price, market cap, holder count, launch/create time, funding-source hints, and top-holder fallback without a user API key. Treat these as market-data providers, not authoritative historical transfer indexes.
 
 If no enhanced Solana API is present, say that complex route decoding may be less complete.
 
