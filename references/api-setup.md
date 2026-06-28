@@ -89,12 +89,12 @@ Requirements:
 Use a short message like:
 
 ```text
-首次跑这个流程需要几个只读 API。当前这次最少需要：
-- Etherscan V2：查 EVM 普通交易、ERC20、internal tx。
-- Blockscout PRO：补 Base/OP/长尾 EVM 链。
-- Alchemy：快速扫地址资产转移，可选但很有用。
+First use needs several read-only APIs. For this task, the minimum is:
+- Etherscan V2: normal tx, ERC20 transfers, internal tx on EVM chains.
+- Blockscout PRO: Base/OP/long-tail EVM fallback.
+- Alchemy: fast address-level transfer scans, optional but useful.
 
-把 key 放到环境变量里即可，不要发私钥、助记词、cookies 或钱包签名。
+Put keys in environment variables. Do not provide private keys, seed phrases, cookies, wallet signatures, or raw sessions.
 ```
 
 Only mention Solscan/Helius/Arkham when the current task needs Solana enhanced parsing or entity labels.

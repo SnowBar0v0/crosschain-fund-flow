@@ -1,6 +1,6 @@
 ---
 name: crosschain-fund-flow
-description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers. Use when the user asks to trace wallet addresses, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual on-chain transactions, identify where funds stopped, produce a readable investigation report, or design/execute cross-chain fund-flow workflows with API keys and labels.
+description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, and label matching. Use when the user asks in plain language to trace wallet addresses, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
 ---
 
 # Crosschain Fund Flow
@@ -10,6 +10,8 @@ description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge o
 Act as a careful chain-analysis operator. Establish transaction facts first, then labels, then interpretation. Do not hardcode API keys, login state, bridge addresses, or front-end assumptions. When an API, explorer, or logged-in session is unavailable, say exactly what is missing and what was still verified.
 
 Default to a plain-language report. Use professional/forensic detail only when the user asks for it or when a complex transaction needs explanation.
+
+This skill is a workflow and investigation skill, not a bundled full-chain indexer. It currently provides procedures, classification rules, report style, and bridge/orderbook knowledge. It does not include a built-in executable collector for every bulk task. For any task requiring pagination, aggregation, top-N ranking, spreadsheet joins, or large-scale token-account owner attribution, read `references/execution-boundaries.md` before creating or running scripts.
 
 ## Required First Steps
 
@@ -24,9 +26,12 @@ Default to a plain-language report. Use professional/forensic detail only when t
    - If the user provides API keys, treat them as runtime secrets: do not write them into the skill, repo, reports, or command history beyond the current run.
 
 3. Load task-specific references only as needed:
+   - Plain-language request parsing and executor routing: read `references/request-routing.md`.
    - Bridge/orderbook work: read `references/bridge-orderbooks.md`.
    - Classification/stopping decisions: read `references/classification-rules.md`.
    - Report formatting: read `references/report-style.md`.
+   - Bulk data processing, top-N analysis, or local scripts: read `references/execution-boundaries.md`.
+   - Solana mint launch / top-N participant / token-owner analysis: read `references/solana-mint-analysis.md`.
 
 ## Data Source Order
 
@@ -53,6 +58,46 @@ Use the best available factual source for the chain, and make the source visible
   - If a bridge/orderbook is unavailable, mark `bridge_orderbook_missing` and give the exact missing bridge/source.
 
 ## Workflow
+
+### 0. Choose Execution Mode
+
+First translate the user's plain-language request into an internal task spec. Do not ask the user to provide command-line flags. Use the model to infer task type, chain, addresses, tx hashes, mint, time window, top-N count, label sheets, and output style. Ask only for information that cannot be reasonably inferred or discovered.
+
+Use `references/request-routing.md` for the routing rules.
+
+Before doing work, decide and state the execution mode:
+
+- `manual_api_trace`: small number of addresses/transactions; direct API/RPC/browser checks are enough.
+- `bulk_analysis`: pagination, aggregation, top-N, spreadsheet intersection, or many token accounts are required.
+- `tool_backed_analysis`: a known CLI/script/tool already exists and the user asked to use it.
+
+If the task is `bulk_analysis` and no approved tool or bundled script exists, do not silently create project scripts. Explain that an execution layer is needed and ask whether to create a temporary script, use an external indexer/API, or narrow the scope. If the user explicitly asked for end-to-end execution and accepts local computation, keep temporary code outside the project unless they ask to save it.
+
+### 0.1 Prefer Bundled Executors
+
+When a bundled executor fits the request, run it instead of creating new scripts:
+
+```text
+scripts/trace_solana_wallet.py            Solana wallet time-window trace.
+scripts/trace_evm_wallet.py               EVM first-layer wallet trace.
+scripts/trace_bridge_order.py             Relay/Gas.zip bridge order lookup.
+scripts/trace_solana_mint_participants.py Solana mint launch top-N participant analysis.
+scripts/label_match.py                    Address-to-label-file matching.
+```
+
+For mint participant requests, map the user's requested count directly to `--top`. Examples: top10 uses `--top 10`, top50 uses `--top 50`. Do not hardcode 20 unless the user did not specify a count.
+
+Before running an executor, briefly tell the user what you parsed:
+
+```text
+Parsed task: <task_type>
+Inputs: <addresses/mint/tx>
+Window: <exact time window>
+Executor: <script>
+Key defaults: <top/metric/depth/label sheets>
+```
+
+Render that notice in the user's language.
 
 ### 1. Build The Window Activity
 
@@ -126,12 +171,14 @@ Use `references/classification-rules.md` for detailed heuristics. The most impor
 
 Default report structure:
 
-1. `先说结论` - one or two plain-language bullets.
-2. `资金主线` - arrow path with chain, amount, timestamp, and tx hashes.
-3. `这笔交易怎么理解` - short explanation for swaps, bridges, platforms, or weird records.
-4. `现在停在哪里` - terminal/stop status and why.
-5. `证据` - compact list of tx hashes, order IDs, source APIs, and confidence notes.
-6. `下一步` - only include if continuation, missing API, or user confirmation is needed.
+1. `Conclusion` - one or two plain-language bullets.
+2. `Main Flow` - arrow path with chain, amount, timestamp, and tx hashes.
+3. `Transaction Meaning` - short explanation for swaps, bridges, platforms, or weird records.
+4. `Stop Point` - terminal/stop status and why.
+5. `Evidence` - compact list of tx hashes, order IDs, source APIs, and confidence notes.
+6. `Next Step` - only include if continuation, missing API, or user confirmation is needed.
+
+Render headings in the user's language. For Chinese users, use natural Simplified Chinese headings, but do not depend on hardcoded Chinese text from this file.
 
 Use the exact status tags from `references/report-style.md`, but keep them secondary to the readable explanation.
 

@@ -94,9 +94,9 @@ For CEX and service wallets:
 Use plain confidence language by default:
 
 ```text
-高：链上交易 + 桥订单簿/平台账本相互印证。
-中：链上交易明确，但标签或订单簿缺失一部分。
-低：只能看到相近时间/金额/标签，缺少直接订单或交易证据。
+high: chain transaction and bridge orderbook/platform ledger confirm each other.
+medium: chain transaction is clear, but label or orderbook evidence is partial.
+low: only nearby time/amount/label evidence exists; direct order or tx proof is missing.
 ```
 
 Use numeric confidence only for professional/JSON output.

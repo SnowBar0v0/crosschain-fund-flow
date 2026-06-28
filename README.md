@@ -28,6 +28,12 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 - 解释 Solana CPI、DEX swap、EVM multicall、`transferFrom`、token account close、internal transfer 等不直观交易。
 - 默认输出偏白话；用户需要时再切换为更专业的证据型报告。
 
+## 执行边界
+
+这个项目首先是调查流程与判断规则 skill，不是一个内置全链索引器。对于少量地址或交易，它会优先使用 API/RPC/订单簿直接追踪；对于 mint 前几小时 top-N、批量 token account owner 归因、Excel 标签交集、分页聚合这类任务，skill 会先说明这是批量分析，需要执行层，然后询问是否使用临时脚本、外部索引器或缩小范围。
+
+它不会默认在用户项目里创建本地脚本。
+
 ## What It Does
 
 - Trace Solana and EVM wallet flows within a user-defined time window.
@@ -37,6 +43,12 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 - Detect when funds continue from the destination chain and ask before expanding deeper.
 - Explain unusual transactions such as Solana CPI routes, DEX swaps, EVM multicalls, `transferFrom`, token account closes, and internal transfers.
 - Produce readable reports by default, with professional evidence-heavy output when requested.
+
+## Execution Boundary
+
+This is primarily an investigation workflow and decision-rule skill, not a bundled full-chain indexer. For small address or transaction checks, it should use APIs/RPC/orderbooks directly. For mint launch top-N analysis, large token-account owner attribution, spreadsheet label intersections, and paginated aggregation, it should first state that bulk analysis needs an execution layer and ask whether to use a temporary script, external indexer, or narrower scope.
+
+It should not silently create local scripts inside a user project.
 
 ## Output Philosophy
 
@@ -80,6 +92,16 @@ Then invoke it in Codex:
 Use $crosschain-fund-flow to trace this Solana address from 00:00 to 10:00 UTC+8.
 ```
 
+Users do not need to write CLI flags. Natural-language requests are expected:
+
+```text
+用 $crosschain-fund-flow 看这个 mint 创建后 3 小时 top50 资金流向，和 JAK 表做交集。
+
+用 $crosschain-fund-flow 看这个地址今天 0 点到 10 点资金最后停在哪里。
+
+用 $crosschain-fund-flow 查这笔 Relay 跨链最后到了哪个 Solana 地址。
+```
+
 ## First-Time Setup
 
 The skill will only ask for the API keys needed for the current task.
@@ -98,16 +120,41 @@ ARKHAM_CAPTURE_PROFILE=
 
 Never provide private keys, seed phrases, wallet signatures, cookies, browser localStorage, or raw session headers.
 
+## CLI Executors
+
+This skill includes runnable executors:
+
+```bash
+python scripts/trace_solana_wallet.py --address <SOL_ADDRESS> --from-time "2026-06-26 00:00" --to-time "2026-06-26 10:00"
+
+python scripts/trace_evm_wallet.py --address <EVM_ADDRESS> --chain-id 8453 --from-time "2026-06-26 00:00" --to-time "2026-06-26 10:00"
+
+python scripts/trace_bridge_order.py --bridge relay --address <EVM_OR_SOL_ADDRESS>
+
+python scripts/trace_solana_mint_participants.py --mint <MINT> --hours-after-create 3 --top 50 --label-file labels.xlsx --label-sheets JAK
+
+python scripts/label_match.py <ADDRESS> --label-file labels.xlsx --label-sheets JAK
+```
+
+Use `--top 10`, `--top 20`, `--top 50`, or any requested count. The default is 20 only when the user does not specify a count.
+
 ## Project Structure
 
 ```text
 SKILL.md
 agents/openai.yaml
 references/
+  request-routing.md
   api-setup.md
   bridge-orderbooks.md
   classification-rules.md
   report-style.md
+scripts/
+  trace_solana_wallet.py
+  trace_evm_wallet.py
+  trace_bridge_order.py
+  trace_solana_mint_participants.py
+  label_match.py
 ```
 
 ## Important Rules
