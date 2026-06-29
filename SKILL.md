@@ -47,6 +47,7 @@ Use the best available factual source for the chain, and make the source visible
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 
 - EVM:
+  - For token-level DEX trading activity on OKX Web3-supported EVM chains, use `fetch_okx_token_trades.py` with the EVM `--chain-id` and contract address. This is the same OKX `trading-history/filter-list` source used for Solana; Solana uses `chainId=501`, while EVM chains generally use their normal EIP-155 chain IDs such as Ethereum `1`, BNB Chain `56`, Base `8453`, Arbitrum `42161`, Optimism `10`, Polygon `137`, and Avalanche `43114`.
   - Prefer Etherscan V2 for supported chains.
   - Use Blockscout PRO for chains Etherscan free tier does not cover or when Blockscout has better decoded data.
   - Use Alchemy Transfers API for fast address-level asset transfer scans.

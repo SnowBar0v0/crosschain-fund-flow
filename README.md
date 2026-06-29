@@ -73,7 +73,7 @@ Recommended optional providers:
 - Alchemy Transfers API for fast EVM address-level scans.
 - Solscan, Helius, or Solana RPC for Solana transaction verification.
 - Public OKX/APIBase and Binance Web3 market endpoints for Solana/EVM token holder snapshots, token metadata, price, market cap, holder count, funding-source hints, and top-holder fallback.
-- Public OKX Web3 trading activity endpoint for Solana token historical DEX trades, including wallet, tx hash, side, amount, value, DEX, tags, and pagination. Binance Web3 `历史成交` pages are useful visible evidence, but are not treated as a stable global historical API until their pagination endpoint is confirmed.
+- Public OKX Web3 trading activity endpoint for Solana and supported EVM token historical DEX trades, including wallet, tx hash, side, amount, value, DEX, tags, and pagination. For EVM contracts, pass the normal chain id, e.g. Ethereum `1`, BNB Chain `56`, Base `8453`, Arbitrum `42161`, Optimism `10`, Polygon `137`, Avalanche `43114`. Binance Web3 `历史成交` pages are useful visible evidence, but are not treated as a stable global historical API until their pagination endpoint is confirmed.
 - Arkham logged-in browser session for entity labels only, especially ChangeNOW, FixedFloat, NEAR Intents, CEX labels, and hot-wallet attribution.
 - Bridge orderbooks for Relay, Mayan, Gas.zip, deBridge, THORChain, and NEAR Intents.
 
@@ -138,6 +138,8 @@ python scripts/trace_solana_mint_participants.py --mint <MINT> --hours-after-cre
 
 python scripts/fetch_okx_token_trades.py --mint <MINT> --from-time "2026-06-25 10:00" --to-time "2026-06-25 13:00" --top 50 --label-file labels.xlsx --label-sheets JAK
 
+python scripts/fetch_okx_token_trades.py --chain-id 1 --mint <EVM_TOKEN_CONTRACT> --from-time "2026-06-29 09:00" --to-time "2026-06-29 10:00" --top 50
+
 python scripts/trace_solana_mint_label_history.py --mint <MINT> --hours-after-create 3 --label-file labels.xlsx --label-sheets JAK
 
 python scripts/label_match.py <ADDRESS> --label-file labels.xlsx --label-sheets JAK
@@ -145,7 +147,7 @@ python scripts/label_match.py <ADDRESS> --label-file labels.xlsx --label-sheets 
 
 Use `--top 10`, `--top 20`, `--top 50`, or any requested count. The default is 20 only when the user does not specify a count.
 
-Use `fetch_okx_token_trades.py` when the user needs no-key historical DEX trading activity for a Solana token. It uses OKX Web3's public trading-activity endpoint and supports time windows, pagination, top-N participant ranking, and label-sheet matching.
+Use `fetch_okx_token_trades.py` when the user needs no-key historical DEX trading activity for a Solana or EVM token. It uses OKX Web3's public trading-activity endpoint and supports time windows, pagination, top-N participant ranking, and label-sheet matching.
 
 Use `trace_solana_mint_label_history.py` when the user wants to know whether addresses from a label sheet ever participated in a mint window, including wallets that bought/sold and later cleared to zero. It scans candidate owner signatures through Solana RPC and reports historical-only hits separately from current holders. This is candidate verification, not global all-wallet discovery.
 

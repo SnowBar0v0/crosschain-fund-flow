@@ -23,8 +23,21 @@ from common import (
 
 
 OKX_TRADING_HISTORY_URL = "https://web3.oyuzh.com/priapi/v1/dx/market/v2/trading-history/filter-list"
-OKX_TOKEN_REFERER = "https://web3.oyuzh.com/zh-hans/token/solana/{token}"
-SOL_CHAIN_ID = 501
+OKX_TOKEN_REFERER = "https://web3.oyuzh.com/zh-hans/token/{chain_slug}/{token}"
+DEFAULT_CHAIN_ID = 501
+OKX_CHAIN_SLUGS = {
+    1: "ethereum",
+    10: "optimism",
+    56: "bsc",
+    137: "polygon",
+    324: "zksync-era",
+    501: "solana",
+    8453: "base",
+    42161: "arbitrum",
+    43114: "avalanche",
+    59144: "linea",
+    81457: "blast",
+}
 
 
 def _coerce_float(value: Any) -> float:
@@ -38,6 +51,12 @@ def _coerce_float(value: Any) -> float:
 
 def _side(value: Any) -> str:
     return "buy" if str(value) == "1" else "sell"
+
+
+def okx_chain_slug(chain_id: int, chain_slug: str | None = None) -> str:
+    if chain_slug:
+        return chain_slug
+    return OKX_CHAIN_SLUGS.get(int(chain_id), str(chain_id))
 
 
 def _tags(row: dict[str, Any]) -> list[str]:
@@ -106,7 +125,7 @@ def normalize_okx_trade(row: dict[str, Any], token_address: str, timezone: str =
     }
 
 
-def okx_request(payload: dict[str, Any], token_address: str) -> dict[str, Any]:
+def okx_request(payload: dict[str, Any], token_address: str, chain_slug: str) -> dict[str, Any]:
     response = http_json(
         OKX_TRADING_HISTORY_URL,
         method="POST",
@@ -114,7 +133,7 @@ def okx_request(payload: dict[str, Any], token_address: str) -> dict[str, Any]:
         headers={
             "accept": "application/json",
             "origin": "https://web3.oyuzh.com",
-            "referer": OKX_TOKEN_REFERER.format(token=token_address),
+            "referer": OKX_TOKEN_REFERER.format(chain_slug=chain_slug, token=token_address),
             "user-agent": "Mozilla/5.0",
         },
     )
@@ -134,7 +153,8 @@ def okx_request(payload: dict[str, Any], token_address: str) -> dict[str, Any]:
 def fetch_okx_trades(
     token_address: str,
     *,
-    chain_id: int = SOL_CHAIN_ID,
+    chain_id: int = DEFAULT_CHAIN_ID,
+    chain_slug: str | None = None,
     start: int | None = None,
     end: int | None = None,
     page_size: int = 30,
@@ -148,6 +168,7 @@ def fetch_okx_trades(
     seen: set[str] = set()
     data_id = ""
     has_more = "1"
+    referer_slug = okx_chain_slug(chain_id, chain_slug)
     for page in range(max_pages):
         trading_filter: dict[str, Any] = {
             "chainId": chain_id,
@@ -166,7 +187,7 @@ def fetch_okx_trades(
             "limit": page_size,
             "tradingHistoryFilter": trading_filter,
         }
-        data = okx_request(payload, token_address)
+        data = okx_request(payload, token_address, referer_slug)
         rows = data.get("list") or []
         if not isinstance(rows, list):
             rows = []
@@ -190,7 +211,7 @@ def fetch_okx_trades(
         data_id = str(next_id)
     if has_more == "1" and len(all_rows) >= max_pages * page_size:
         warnings.append("OKX trading history reached max page limit; increase --max-pages for broader coverage.")
-    warnings.append("OKX trading activity is a public market-data index. Verify material transactions on Solana RPC or an explorer before treating them as final evidence.")
+    warnings.append("OKX trading activity is a public market-data index. Verify material transactions on the chain RPC or an explorer before treating them as final evidence.")
     return all_rows, {"has_more": has_more, "last_data_id": data_id, "page_size": page_size, "max_pages": max_pages}, warnings
 
 
@@ -313,7 +334,8 @@ def build_markdown(result: dict[str, Any]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch OKX Web3 token trading activity.")
     parser.add_argument("--token", "--mint", dest="token", required=True, help="Token contract/mint address.")
-    parser.add_argument("--chain-id", type=int, default=SOL_CHAIN_ID)
+    parser.add_argument("--chain-id", type=int, default=DEFAULT_CHAIN_ID)
+    parser.add_argument("--chain-slug", help="Optional OKX URL chain slug for referer, e.g. solana, ethereum, base, bsc.")
     parser.add_argument("--from-time")
     parser.add_argument("--to-time")
     parser.add_argument("--timezone", default="Asia/Shanghai")
@@ -332,6 +354,7 @@ def main() -> None:
     rows, paging, warnings = fetch_okx_trades(
         args.token,
         chain_id=args.chain_id,
+        chain_slug=args.chain_slug,
         start=start,
         end=end,
         page_size=args.page_size,

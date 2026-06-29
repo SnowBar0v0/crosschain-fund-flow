@@ -131,15 +131,30 @@ Labels:
 
 ### OKX Token Trades
 
-Trigger when the request asks for a Solana token's historical DEX trades, transaction activity, OKX `交易活动`, no-key token trade history, top buyers from token activity, or all wallets that traded in a time window.
+Trigger when the request asks for a Solana mint or EVM token contract's historical DEX trades, transaction activity, OKX `交易活动`, no-key token trade history, top buyers from token activity, or all wallets that traded in a time window.
 
 Executor:
 
 ```bash
-python scripts/fetch_okx_token_trades.py --mint <mint> --from-time <from> --to-time <to> --top <n>
+python scripts/fetch_okx_token_trades.py --chain-id <chain_id> --mint <token_or_mint> --from-time <from> --to-time <to> --top <n>
 ```
 
 Use this executor when the user specifically points to an OKX Web3 token page or asks whether the page's `交易活动` can be used as a transaction source. It returns wallet addresses, tx hashes, buy/sell side, token amount, value, DEX, tags, and pagination.
+
+Chain id defaults:
+
+```text
+Solana: 501
+Ethereum: 1
+BNB Chain: 56
+Base: 8453
+Arbitrum: 42161
+Optimism: 10
+Polygon: 137
+Avalanche: 43114
+```
+
+If the user gives an EVM contract and chain name, infer `--chain-id` from the chain name. If the chain cannot be inferred, ask for the chain. The OKX endpoint accepts the same request shape; changing `chainId` is normally enough.
 
 Use `trace_solana_mint_participants.py --provider okx_trades` when the requested output is the normal mint top-N participant report:
 
