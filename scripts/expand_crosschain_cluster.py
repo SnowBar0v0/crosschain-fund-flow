@@ -52,6 +52,11 @@ SOLANA_PROGRAMS = {
     "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
     "SysvarRent111111111111111111111111111111111",
 }
+SYSTEM_PROGRAM = "11111111111111111111111111111111"
+TOKEN_PROGRAMS = {
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "TokenzQdBNbLqP5VEhdkAS6EPFJJZq8L1YdPzjzJVd2",
+}
 
 KNOWN_BRIDGE_ADDRESSES = {
     "7uTT8Xi5RWXzy7h9XL244GRgEycDYDhLjr3ZyNdXi8pZ",
@@ -101,6 +106,86 @@ SERVICE_TERMS = (
     "temporary",
     "bot",
 )
+
+SERVICE_NODE_TYPES = {
+    "bridge",
+    "dex",
+    "dex_pool",
+    "cex",
+    "service",
+    "contract",
+    "program",
+    "program_owned",
+    "token_account",
+    "fee_account",
+    "market",
+    "temporary_account",
+    "bonding_curve",
+}
+POSITIVE_SCORING_EDGE_TYPES = {"direct_value_transfer", "token_owner_transfer"}
+NON_SCORING_EDGE_TYPES = {
+    "swap_or_dex_route",
+    "swap_user_input",
+    "swap_user_output",
+    "swap_fee",
+    "liquidity_action",
+    "account_rent_or_close",
+    "wrap_unwrap_native",
+    "bridge_deposit",
+    "bridge_fill",
+    "platform_deposit",
+    "platform_internal",
+    "contract_interaction",
+    "unknown_complex",
+}
+DEX_TERMS = (
+    "dex",
+    "router",
+    "pool",
+    "amm",
+    "market",
+    "bonding curve",
+    "pumpswap",
+    "pump.fun",
+    "raydium",
+    "orca",
+    "meteora",
+    "jupiter",
+    "openbook",
+    "phoenix",
+    "lifinity",
+    "saber",
+    "mercurial",
+)
+EVM_DEX_METHOD_TERMS = (
+    "swap",
+    "multicall",
+    "exactinput",
+    "exactoutput",
+    "addliquidity",
+    "removeliquidity",
+    "unoswap",
+    "uniswap",
+    "pancake",
+    "curve",
+)
+EVM_NON_FLOW_METHOD_TERMS = ("approve", "permit", "increaseallowance", "decreaseallowance", "setapprovalforall")
+GENERIC_PLATFORM_LOG_TERMS = {"instruction: buy", "instruction: sell", "swap", "route"}
+
+
+def load_solana_platforms() -> dict[str, Any]:
+    path = Path(__file__).resolve().parents[1] / "data" / "solana_platforms.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    data.setdefault("platforms", [])
+    data.setdefault("service_account_terms", list(SERVICE_TERMS))
+    data.setdefault("non_flow_instruction_types", [])
+    return data
+
+
+SOLANA_PLATFORM_DATA = load_solana_platforms()
 
 
 def bool_arg(value: str | bool) -> bool:
@@ -169,24 +254,36 @@ def label_texts(address: str, labels: dict[str, list[dict[str, Any]]]) -> list[s
     return [str(hit.get("text", "")) for hit in labels.get(key, [])]
 
 
+def _label_text(address: str, labels: dict[str, list[dict[str, Any]]]) -> str:
+    return " ".join(label_texts(address, labels)).lower()
+
+
 def is_service_address(chain: str, address: str, labels: dict[str, list[dict[str, Any]]]) -> bool:
     normalized = normalize_address(address)
     if chain == SOLANA_CHAIN and (address in SOLANA_PROGRAMS or address in KNOWN_BRIDGE_ADDRESSES):
         return True
     if chain != SOLANA_CHAIN and normalized in KNOWN_EVM_SERVICE_ADDRESSES:
         return True
-    text = " ".join(label_texts(address, labels)).lower()
+    text = _label_text(address, labels)
     return any(term in text for term in SERVICE_TERMS)
 
 
 def service_type(chain: str, address: str, labels: dict[str, list[dict[str, Any]]]) -> str:
     normalized = normalize_address(address)
-    text = " ".join(label_texts(address, labels)).lower()
+    text = _label_text(address, labels)
     if "cex" in text or "exchange" in text or any(x in text for x in ("binance", "okx", "coinbase", "bybit")):
         return "cex"
     if "bridge" in text or "relay" in text or "mayan" in text or "debridge" in text or "gas" in text:
         return "bridge"
-    if "router" in text or "pool" in text or "dex" in text:
+    if "fee" in text and ("protocol" in text or "creator" in text):
+        return "fee_account"
+    if "token account" in text or "temporary" in text:
+        return "token_account"
+    if "bonding curve" in text:
+        return "bonding_curve"
+    if "market" in text:
+        return "market"
+    if any(term in text for term in DEX_TERMS):
         return "dex"
     if chain == SOLANA_CHAIN and (address in SOLANA_PROGRAMS or address in KNOWN_BRIDGE_ADDRESSES):
         return "bridge" if address in KNOWN_BRIDGE_ADDRESSES else "service"
@@ -195,10 +292,126 @@ def service_type(chain: str, address: str, labels: dict[str, list[dict[str, Any]
     return "service"
 
 
+def classify_address(
+    address: str,
+    chain: str,
+    labels: dict[str, list[dict[str, Any]]],
+    rpc_url: str | None = None,
+    account_cache: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    normalized = normalize_address(address)
+    text = _label_text(address, labels)
+    if chain != SOLANA_CHAIN:
+        if normalized in KNOWN_EVM_SERVICE_ADDRESSES:
+            return {
+                "account_type": "bridge",
+                "candidate_eligible": False,
+                "owner": None,
+                "public_name": text,
+                "source": "known_evm_service",
+            }
+        if any(term in text for term in SERVICE_TERMS) or any(term in text for term in DEX_TERMS):
+            return {
+                "account_type": service_type(chain, address, labels),
+                "candidate_eligible": False,
+                "owner": None,
+                "public_name": text,
+                "source": "label",
+            }
+        if "contract" in text:
+            return {
+                "account_type": "contract",
+                "candidate_eligible": False,
+                "owner": None,
+                "public_name": text,
+                "source": "label",
+            }
+        return {"account_type": "wallet", "candidate_eligible": True, "owner": None, "public_name": text, "source": "heuristic"}
+
+    if address in KNOWN_BRIDGE_ADDRESSES:
+        return {
+            "account_type": "bridge",
+            "candidate_eligible": False,
+            "owner": None,
+            "public_name": text,
+            "source": "known_solana_bridge",
+        }
+    if address in SOLANA_PROGRAMS:
+        return {
+            "account_type": "program",
+            "candidate_eligible": False,
+            "owner": None,
+            "public_name": text,
+            "source": "known_solana_program",
+        }
+    if any(term in text for term in SERVICE_TERMS) or any(term in text for term in DEX_TERMS):
+        return {
+            "account_type": service_type(chain, address, labels),
+            "candidate_eligible": False,
+            "owner": None,
+            "public_name": text,
+            "source": "label",
+        }
+    if account_cache is not None and normalized in account_cache:
+        return account_cache[normalized]
+    if rpc_url:
+        try:
+            value = solana_rpc("getAccountInfo", [address, {"encoding": "jsonParsed"}], rpc_url) or {}
+            info = value.get("value")
+        except Exception:
+            info = None
+        if info:
+            owner = info.get("owner")
+            data = info.get("data") if isinstance(info, dict) else None
+            parsed = data.get("parsed") if isinstance(data, dict) else None
+            parsed_info = parsed.get("info") if isinstance(parsed, dict) else None
+            if info.get("executable"):
+                meta = {
+                    "account_type": "program",
+                    "candidate_eligible": False,
+                    "owner": owner,
+                    "public_name": text,
+                    "source": "solana_rpc_executable",
+                }
+            elif owner in TOKEN_PROGRAMS:
+                meta = {
+                    "account_type": "token_account",
+                    "candidate_eligible": False,
+                    "owner": parsed_info.get("owner") if isinstance(parsed_info, dict) else owner,
+                    "public_name": text,
+                    "source": "solana_rpc_token_account",
+                }
+            elif owner == SYSTEM_PROGRAM:
+                meta = {
+                    "account_type": "wallet",
+                    "candidate_eligible": True,
+                    "owner": owner,
+                    "public_name": text,
+                    "source": "solana_rpc_system_owner",
+                }
+            else:
+                meta = {
+                    "account_type": "program_owned",
+                    "candidate_eligible": False,
+                    "owner": owner,
+                    "public_name": text,
+                    "source": "solana_rpc_program_owner",
+                }
+            if account_cache is not None:
+                account_cache[normalized] = meta
+            return meta
+    meta = {"account_type": "wallet", "candidate_eligible": True, "owner": None, "public_name": text, "source": "heuristic_no_rpc"}
+    if account_cache is not None:
+        account_cache[normalized] = meta
+    return meta
+
+
 class ClusterGraph:
-    def __init__(self, labels: dict[str, list[dict[str, Any]]], seed_ids: set[str]) -> None:
+    def __init__(self, labels: dict[str, list[dict[str, Any]]], seed_ids: set[str], rpc_url: str | None = None) -> None:
         self.labels = labels
         self.seed_ids = seed_ids
+        self.rpc_url = rpc_url
+        self.account_cache: dict[str, dict[str, Any]] = {}
         self.nodes: dict[str, dict[str, Any]] = {}
         self.edges: list[dict[str, Any]] = []
         self.score: dict[str, int] = defaultdict(int)
@@ -209,10 +422,13 @@ class ClusterGraph:
     def add_node(self, chain: str, address: str, node_type: str = "candidate") -> str:
         nid = node_id(chain, address)
         labels = self.labels.get(address.lower() if address.startswith("0x") else address, [])
+        meta = classify_address(address, chain, self.labels, self.rpc_url if chain == SOLANA_CHAIN else None, self.account_cache)
+        candidate_eligible = bool(meta.get("candidate_eligible"))
         if nid in self.seed_ids:
             node_type = "seed"
-        if node_type == "candidate" and is_service_address(chain, address, self.labels):
-            node_type = service_type(chain, address, self.labels)
+            candidate_eligible = True
+        if node_type == "candidate" and not candidate_eligible:
+            node_type = str(meta.get("account_type") or service_type(chain, address, self.labels))
         node = self.nodes.setdefault(
             nid,
             {
@@ -220,34 +436,60 @@ class ClusterGraph:
                 "address": normalize_address(address),
                 "chain": chain,
                 "type": node_type,
+                "account_type": meta.get("account_type"),
+                "owner": meta.get("owner"),
+                "public_name": meta.get("public_name"),
+                "candidate_eligible": candidate_eligible,
+                "classification_source": meta.get("source"),
                 "labels": labels,
                 "score": 0,
             },
         )
         if node.get("type") != "seed" and node_type != "candidate":
             node["type"] = node_type
+        if node.get("type") != "seed":
+            node["candidate_eligible"] = bool(node.get("candidate_eligible")) and node.get("type") not in SERVICE_NODE_TYPES
         return nid
 
     def add_edge(self, src_chain: str, src: str, dst_chain: str, dst: str, edge: dict[str, Any]) -> None:
-        src_id = self.add_node(src_chain, src)
-        dst_id = self.add_node(dst_chain, dst)
+        src_id = self.add_node(src_chain, src, edge.get("from_node_type", "candidate"))
+        dst_id = self.add_node(dst_chain, dst, edge.get("to_node_type", "candidate"))
+        edge_type = edge.get("type", "direct_value_transfer")
+        eligible = edge.get("eligible_for_scoring")
+        if eligible is None:
+            eligible = edge_type in POSITIVE_SCORING_EDGE_TYPES
+        if eligible and (not self.node_scoreable(src_id) or not self.node_scoreable(dst_id)):
+            eligible = False
         record = {
             "from": src_id,
             "to": dst_id,
             "from_address": normalize_address(src),
             "to_address": normalize_address(dst),
             "chain": edge.get("chain") or src_chain,
-            "type": edge.get("type", "transfer"),
+            "type": edge_type,
+            "intent": edge.get("intent") or edge_type,
             "tx": edge.get("tx"),
             "time": edge.get("time"),
             "timestamp": edge.get("timestamp"),
             "asset": edge.get("asset"),
             "amount": edge.get("amount"),
             "score": int(edge.get("score") or 0),
+            "eligible_for_scoring": bool(eligible),
+            "excluded_reason": edge.get("excluded_reason") or (None if eligible else edge.get("reason") or "non_scoring_semantic_edge"),
+            "platform": edge.get("platform"),
+            "service_nodes": edge.get("service_nodes") or [],
+            "input_asset": edge.get("input_asset"),
+            "input_amount": edge.get("input_amount"),
+            "output_asset": edge.get("output_asset"),
+            "output_amount": edge.get("output_amount"),
+            "classification": edge.get("classification"),
             "evidence": edge.get("evidence", ""),
             "source": edge.get("source"),
             "hop": edge.get("hop"),
         }
+        for service_node in record["service_nodes"]:
+            if isinstance(service_node, dict) and service_node.get("address"):
+                self.add_node(service_node.get("chain") or record["chain"], service_node["address"], service_node.get("type") or "service")
         key = (
             record["from"],
             record["to"],
@@ -269,13 +511,19 @@ class ClusterGraph:
                 return
         self.edges.append(record)
 
+    def node_scoreable(self, nid: str) -> bool:
+        if nid in self.seed_ids:
+            return True
+        node = self.nodes.get(nid) or {}
+        return bool(node.get("candidate_eligible")) and node.get("type") not in SERVICE_NODE_TYPES
+
     def add_score(self, nid: str, points: int, reason: str, edge_refs: list[dict[str, Any]]) -> None:
         if nid in self.seed_ids:
             return
         node = self.nodes.get(nid)
         if not node:
             return
-        if node.get("type") in {"bridge", "dex", "cex", "service", "contract"}:
+        if not self.node_scoreable(nid):
             points = min(points, -5 if points > 0 else points)
         self.score[nid] += points
         self.evidence[nid].append({"score": points, "reason": reason, "edges": edge_refs[:10]})
@@ -324,6 +572,116 @@ def account_pubkeys(tx: dict[str, Any]) -> list[str]:
     return out
 
 
+def signer_pubkeys(tx: dict[str, Any]) -> list[str]:
+    keys = tx.get("transaction", {}).get("message", {}).get("accountKeys") or []
+    signers = []
+    for key in keys:
+        if isinstance(key, dict) and key.get("signer") and key.get("pubkey"):
+            signers.append(str(key["pubkey"]))
+    return signers
+
+
+def instruction_objects(tx: dict[str, Any]) -> list[dict[str, Any]]:
+    message = tx.get("transaction", {}).get("message", {})
+    out = [item for item in message.get("instructions") or [] if isinstance(item, dict)]
+    meta = tx.get("meta") or {}
+    for group in meta.get("innerInstructions") or []:
+        for item in group.get("instructions") or []:
+            if isinstance(item, dict):
+                out.append(item)
+    return out
+
+
+def instruction_program_ids(tx: dict[str, Any]) -> list[str]:
+    keys = account_pubkeys(tx)
+    out = []
+    for item in instruction_objects(tx):
+        program_id = item.get("programId")
+        if not program_id and item.get("programIdIndex") is not None:
+            try:
+                program_id = keys[int(item["programIdIndex"])]
+            except (ValueError, TypeError, IndexError):
+                program_id = None
+        if program_id:
+            out.append(str(program_id))
+    return sorted(set(out))
+
+
+def parsed_instruction_types(tx: dict[str, Any]) -> list[str]:
+    out = []
+    for item in instruction_objects(tx):
+        parsed = item.get("parsed")
+        if isinstance(parsed, dict) and parsed.get("type"):
+            out.append(str(parsed["type"]))
+        if item.get("type"):
+            out.append(str(item["type"]))
+    return out
+
+
+def material_owners(changes: list[dict[str, Any]], negative: bool) -> set[str]:
+    owners = set()
+    for change in changes:
+        delta = float(change.get("delta") or 0)
+        if negative and delta < -1e-9:
+            owners.add(str(change.get("owner")))
+        if not negative and delta > 1e-9:
+            owners.add(str(change.get("owner")))
+    owners.discard("")
+    owners.discard("None")
+    return owners
+
+
+def platform_matches(tx: dict[str, Any], labels: dict[str, list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
+    labels = labels or {}
+    logs = "\n".join(tx.get("meta", {}).get("logMessages") or [])
+    logs_l = logs.lower()
+    accounts = account_pubkeys(tx)
+    account_label_blob = " ".join(_label_text(account, labels) for account in accounts if account)
+    programs = set(instruction_program_ids(tx))
+    matches = []
+    for platform in SOLANA_PLATFORM_DATA.get("platforms", []):
+        reasons = []
+        specific_reasons = []
+        for program_id in platform.get("program_ids") or []:
+            if program_id in programs or program_id in accounts:
+                reason = f"program_id:{program_id}"
+                reasons.append(reason)
+                specific_reasons.append(reason)
+        for keyword in platform.get("log_keywords") or []:
+            if str(keyword).lower() in logs_l:
+                reason = f"log:{keyword}"
+                reasons.append(reason)
+                if str(keyword).strip().lower() not in GENERIC_PLATFORM_LOG_TERMS:
+                    specific_reasons.append(reason)
+        for term in platform.get("account_label_terms") or []:
+            if str(term).lower() in account_label_blob:
+                reason = f"label:{term}"
+                reasons.append(reason)
+                specific_reasons.append(reason)
+        if reasons and specific_reasons:
+            item = dict(platform)
+            item["match_reasons"] = reasons
+            matches.append(item)
+    return matches
+
+
+def service_accounts_from_tx(tx: dict[str, Any], labels: dict[str, list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
+    labels = labels or {}
+    out: list[dict[str, Any]] = []
+    seen = set()
+    for address in account_pubkeys(tx) + instruction_program_ids(tx):
+        if not address or address in seen:
+            continue
+        seen.add(address)
+        if address in SOLANA_PROGRAMS or address in KNOWN_BRIDGE_ADDRESSES:
+            out.append({"chain": SOLANA_CHAIN, "address": address, "type": service_type(SOLANA_CHAIN, address, labels)})
+            continue
+        text = _label_text(address, labels)
+        if any(term in text for term in SOLANA_PLATFORM_DATA.get("service_account_terms", [])) or any(term in text for term in DEX_TERMS):
+            out.append({"chain": SOLANA_CHAIN, "address": address, "type": service_type(SOLANA_CHAIN, address, labels)})
+    return out
+
+
 def solana_owner_deltas(tx: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     meta = tx.get("meta") or {}
     keys = account_pubkeys(tx)
@@ -351,7 +709,137 @@ def solana_owner_deltas(tx: dict[str, Any]) -> tuple[list[dict[str, Any]], list[
     return sol_changes, token_changes
 
 
-def pair_deltas(changes: list[dict[str, Any]], tx_hash: str, timestamp: int | None, source: str) -> list[dict[str, Any]]:
+def classify_solana_transaction(
+    tx: dict[str, Any],
+    labels: dict[str, list[dict[str, Any]]] | None = None,
+    sol_changes: list[dict[str, Any]] | None = None,
+    token_changes: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    labels = labels or {}
+    if sol_changes is None or token_changes is None:
+        sol_changes, token_changes = solana_owner_deltas(tx)
+    matches = platform_matches(tx, labels)
+    program_ids = instruction_program_ids(tx)
+    instruction_types = parsed_instruction_types(tx)
+    instruction_blob = " ".join(instruction_types).lower()
+    logs = "\n".join(tx.get("meta", {}).get("logMessages") or [])
+    logs_l = logs.lower()
+    signers = signer_pubkeys(tx)
+    service_nodes = service_accounts_from_tx(tx, labels)
+    platform = matches[0]["id"] if matches else None
+    reason = "; ".join(matches[0].get("match_reasons", [])[:5]) if matches else ""
+    non_core_program_ids = [program_id for program_id in program_ids if program_id not in SOLANA_PROGRAMS]
+    if matches and any(match.get("category") == "dex" for match in matches):
+        return {
+            "intent": "swap_or_dex_route",
+            "platform": platform,
+            "program_ids": program_ids,
+            "program_labels": [match.get("name") for match in matches],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": signers,
+            "confidence": "high",
+            "reason": reason or "matched Solana DEX/platform dictionary",
+        }
+    if any(address in KNOWN_BRIDGE_ADDRESSES for address in account_pubkeys(tx) + program_ids):
+        return {
+            "intent": "bridge_order",
+            "platform": "known_bridge",
+            "program_ids": program_ids,
+            "program_labels": [],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": signers,
+            "confidence": "medium",
+            "reason": "known bridge account/program present",
+        }
+    if any(term in logs_l for term in ("swap", "route", "amm", "pool", "bonding curve", "raydium", "orca", "meteora", "jupiter")):
+        return {
+            "intent": "swap_or_dex_route",
+            "platform": platform or "unknown_dex_route",
+            "program_ids": program_ids,
+            "program_labels": [],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": signers,
+            "confidence": "medium",
+            "reason": "swap/router/AMM keyword in logs",
+        }
+    token_neg = material_owners(token_changes or [], True)
+    token_pos = material_owners(token_changes or [], False)
+    sol_neg = material_owners(sol_changes or [], True)
+    sol_pos = material_owners(sol_changes or [], False)
+    has_wrap = "syncnative" in instruction_blob or ("withdraw" in instruction_blob and "wrapped" in logs_l)
+    has_account_noise = any(
+        item.lower() in {x.lower() for x in SOLANA_PLATFORM_DATA.get("non_flow_instruction_types", [])}
+        for item in instruction_types
+    )
+    if token_neg and token_pos and len(token_neg) == 1 and len(token_pos) == 1 and not non_core_program_ids:
+        return {
+            "intent": "token_transfer",
+            "platform": None,
+            "program_ids": program_ids,
+            "program_labels": [],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": sorted(token_neg | token_pos),
+            "confidence": "medium",
+            "reason": "single owner-level SPL token debit and credit",
+        }
+    if has_wrap:
+        intent = "wrap_unwrap_native"
+    elif has_account_noise:
+        intent = "account_create_close"
+    elif not sol_neg and not sol_pos and not token_neg and not token_pos:
+        intent = "fee_or_rent_noise"
+    else:
+        intent = None
+    if intent is not None:
+        return {
+            "intent": intent,
+            "platform": platform,
+            "program_ids": program_ids,
+            "program_labels": [match.get("name") for match in matches],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": signers,
+            "confidence": "low",
+            "reason": "not a clean direct owner-to-owner transfer",
+        }
+    if sol_neg and sol_pos and len(sol_neg) == 1 and len(sol_pos) == 1 and not token_changes and not non_core_program_ids:
+        return {
+            "intent": "plain_transfer",
+            "platform": None,
+            "program_ids": program_ids,
+            "program_labels": [],
+            "signers": signers,
+            "service_accounts": service_nodes,
+            "user_accounts": sorted(sol_neg | sol_pos),
+            "confidence": "medium",
+            "reason": "single SOL debit and credit",
+        }
+    return {
+        "intent": "unknown_complex",
+        "platform": platform,
+        "program_ids": program_ids,
+        "program_labels": [match.get("name") for match in matches],
+        "signers": signers,
+        "service_accounts": service_nodes,
+        "user_accounts": signers,
+        "confidence": "low",
+        "reason": "not a clean direct owner-to-owner transfer",
+    }
+
+
+def pair_deltas(
+    changes: list[dict[str, Any]],
+    tx_hash: str,
+    timestamp: int | None,
+    source: str,
+    edge_type: str,
+    classification: dict[str, Any] | None = None,
+    eligible_for_scoring: bool | None = None,
+) -> list[dict[str, Any]]:
     edges = []
     by_asset: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for change in changes:
@@ -375,16 +863,139 @@ def pair_deltas(changes: list[dict[str, Any]], tx_hash: str, timestamp: int | No
                         "tx": tx_hash,
                         "timestamp": timestamp,
                         "time": format_time(timestamp),
-                        "type": "transfer" if asset == "SOL" else "token_transfer",
+                        "type": edge_type,
+                        "intent": classification.get("intent") if classification else edge_type,
                         "source": source,
                         "score": 0,
+                        "eligible_for_scoring": edge_type in POSITIVE_SCORING_EDGE_TYPES if eligible_for_scoring is None else eligible_for_scoring,
+                        "classification": classification,
                         "evidence": f"{source} balance delta pair {shorten(tx_hash)} {amount:g} {asset}",
                     }
                 )
     return edges
 
 
-def solana_edges_for_address(address: str, start: int | None, end: int | None, rpc_url: str, limit: int) -> list[dict[str, Any]]:
+def _edge_involves_address(edge: dict[str, Any], address: str) -> bool:
+    return normalize_address(edge.get("from", "")) == normalize_address(address) or normalize_address(edge.get("to", "")) == normalize_address(address)
+
+
+def summarize_user_asset_changes(address: str, changes: list[dict[str, Any]], negative: bool) -> tuple[str | None, float | None]:
+    rows = []
+    for change in changes:
+        if normalize_address(str(change.get("owner"))) != normalize_address(address):
+            continue
+        delta = float(change.get("delta") or 0)
+        if negative and delta < 0:
+            rows.append((str(change.get("mint")), abs(delta)))
+        if not negative and delta > 0:
+            rows.append((str(change.get("mint")), delta))
+    if not rows:
+        return None, None
+    rows.sort(key=lambda x: x[1], reverse=True)
+    return rows[0]
+
+
+def non_scoring_self_edge(
+    address: str,
+    edge_type: str,
+    signature: str,
+    timestamp: int | None,
+    classification: dict[str, Any],
+    source: str = "solana_rpc",
+) -> dict[str, Any]:
+    return {
+        "from": address,
+        "to": address,
+        "asset": None,
+        "amount": None,
+        "tx": signature,
+        "timestamp": timestamp,
+        "time": format_time(timestamp),
+        "type": edge_type,
+        "intent": classification.get("intent"),
+        "source": source,
+        "score": 0,
+        "eligible_for_scoring": False,
+        "platform": classification.get("platform"),
+        "service_nodes": classification.get("service_accounts") or [],
+        "classification": {k: v for k, v in classification.items() if k != "_tx"},
+        "evidence": f"{classification.get('intent')} {shorten(signature)}: {classification.get('reason')}",
+    }
+
+
+def solana_edges_from_transaction(
+    address: str,
+    signature: str,
+    timestamp: int | None,
+    tx: dict[str, Any],
+    labels: dict[str, list[dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
+    sol_changes, token_changes = solana_owner_deltas(tx)
+    classification = classify_solana_transaction(tx, labels, sol_changes, token_changes)
+    intent = classification.get("intent")
+    classification_for_edge = {k: v for k, v in classification.items() if k != "_tx"}
+    if intent == "swap_or_dex_route":
+        in_asset, in_amount = summarize_user_asset_changes(address, sol_changes + token_changes, True)
+        out_asset, out_amount = summarize_user_asset_changes(address, sol_changes + token_changes, False)
+        return [
+            {
+                "from": address,
+                "to": address,
+                "asset": out_asset or in_asset,
+                "amount": out_amount or in_amount,
+                "tx": signature,
+                "timestamp": timestamp,
+                "time": format_time(timestamp),
+                "type": "swap_or_dex_route",
+                "intent": intent,
+                "source": "solana_rpc_semantic_classifier",
+                "score": 0,
+                "eligible_for_scoring": False,
+                "platform": classification.get("platform"),
+                "service_nodes": classification.get("service_accounts") or [],
+                "input_asset": in_asset,
+                "input_amount": in_amount,
+                "output_asset": out_asset,
+                "output_amount": out_amount,
+                "classification": classification_for_edge,
+                "evidence": f"DEX/platform route {shorten(signature)} platform {classification.get('platform') or 'unknown'}; shared pool/router interaction is not candidate evidence",
+            }
+        ]
+    if intent == "bridge_order":
+        edges = []
+        for edge in pair_deltas(sol_changes + token_changes, signature, timestamp, "solana_rpc_bridge_candidate", "bridge_deposit", classification_for_edge, False):
+            if _edge_involves_address(edge, address):
+                edge["platform"] = classification.get("platform")
+                edge["service_nodes"] = classification.get("service_accounts") or []
+                edges.append(edge)
+        if edges:
+            return edges
+        return [non_scoring_self_edge(address, "bridge_deposit", signature, timestamp, classification_for_edge)]
+    if intent == "plain_transfer":
+        return [edge for edge in pair_deltas(sol_changes, signature, timestamp, "solana_rpc", "direct_value_transfer", classification_for_edge, True) if _edge_involves_address(edge, address)]
+    if intent == "token_transfer":
+        return [
+            edge
+            for edge in pair_deltas(token_changes, signature, timestamp, "solana_rpc_token_owner_delta", "token_owner_transfer", classification_for_edge, True)
+            if _edge_involves_address(edge, address)
+        ]
+    if intent == "account_create_close":
+        return [non_scoring_self_edge(address, "account_rent_or_close", signature, timestamp, classification_for_edge)]
+    if intent == "wrap_unwrap_native":
+        return [non_scoring_self_edge(address, "wrap_unwrap_native", signature, timestamp, classification_for_edge)]
+    if intent == "fee_or_rent_noise":
+        return []
+    return [non_scoring_self_edge(address, "unknown_complex", signature, timestamp, classification_for_edge)]
+
+
+def solana_edges_for_address(
+    address: str,
+    start: int | None,
+    end: int | None,
+    rpc_url: str,
+    limit: int,
+    labels: dict[str, list[dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
     edges = []
     seen_txs: set[str] = set()
     for sig in fetch_signatures_for_window(address, start, end, rpc_url, limit):
@@ -396,13 +1007,7 @@ def solana_edges_for_address(address: str, start: int | None, end: int | None, r
         if not tx:
             continue
         timestamp = sig.get("blockTime")
-        sol_changes, token_changes = solana_owner_deltas(tx)
-        for edge in pair_deltas(sol_changes, signature, timestamp, "solana_rpc"):
-            if edge["from"] == address or edge["to"] == address:
-                edges.append(edge)
-        for edge in pair_deltas(token_changes, signature, timestamp, "solana_rpc_token_owner_delta"):
-            if edge["from"] == address or edge["to"] == address:
-                edges.append(edge)
+        edges.extend(solana_edges_from_transaction(address, signature, timestamp, tx, labels))
     return edges
 
 
@@ -424,7 +1029,72 @@ def choose_evm_provider(requested: str) -> str | None:
     return None
 
 
-def evm_edges_for_address(address: str, chain_id: int, start: int | None, end: int | None, provider: str, limit: int) -> list[dict[str, Any]]:
+def _evm_value_amount(row: dict[str, Any]) -> float:
+    try:
+        return float(row.get("value") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def classify_evm_action(row: dict[str, Any], action: str, labels: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+    labels = labels or {}
+    src = str(row.get("from") or "").lower()
+    dst = str(row.get("to") or "").lower()
+    method_blob = " ".join(str(row.get(key) or "") for key in ("functionName", "methodId", "input")).lower().replace("_", "")
+    src_service = is_service_address("evm", src, labels) if src else False
+    dst_service = is_service_address("evm", dst, labels) if dst else False
+    if any(term in method_blob for term in EVM_NON_FLOW_METHOD_TERMS):
+        return {
+            "intent": "contract_interaction",
+            "edge_type": "contract_interaction",
+            "eligible_for_scoring": False,
+            "reason": "approve/permit/allowance update is not fund movement",
+        }
+    if any(term in method_blob for term in EVM_DEX_METHOD_TERMS):
+        return {
+            "intent": "swap_or_dex_route",
+            "edge_type": "swap_or_dex_route",
+            "eligible_for_scoring": False,
+            "reason": "router/multicall/swap-like EVM method",
+        }
+    if action == "txlist" and method_blob and row.get("input") not in (None, "", "0x") and _evm_value_amount(row) <= 0:
+        return {
+            "intent": "contract_interaction",
+            "edge_type": "contract_interaction",
+            "eligible_for_scoring": False,
+            "reason": "contract call with no native value",
+        }
+    if src_service or dst_service:
+        return {
+            "intent": "platform_or_service_transfer",
+            "edge_type": "platform_internal" if src_service and dst_service else "platform_deposit",
+            "eligible_for_scoring": False,
+            "reason": "service/platform endpoint",
+        }
+    if action == "tokentx":
+        return {
+            "intent": "token_transfer",
+            "edge_type": "token_owner_transfer",
+            "eligible_for_scoring": True,
+            "reason": "ERC20 transfer event between non-service endpoints",
+        }
+    return {
+        "intent": "plain_transfer",
+        "edge_type": "direct_value_transfer",
+        "eligible_for_scoring": True,
+        "reason": "native/internal value transfer between non-service endpoints",
+    }
+
+
+def evm_edges_for_address(
+    address: str,
+    chain_id: int,
+    start: int | None,
+    end: int | None,
+    provider: str,
+    limit: int,
+    labels: dict[str, list[dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
     key = evm_api_key(provider)
     if not key:
         raise ToolError(f"Missing {provider.upper()} API key for EVM cluster expansion.")
@@ -452,6 +1122,9 @@ def evm_edges_for_address(address: str, chain_id: int, start: int | None, end: i
                 continue
             if src != address_l and dst != address_l:
                 continue
+            classification = classify_evm_action(row, action, labels)
+            if action == "txlist" and classification["edge_type"] == "direct_value_transfer" and _evm_value_amount(row) <= 0:
+                continue
             decimals = row.get("tokenDecimal")
             value = row.get("value")
             amount = value
@@ -468,10 +1141,13 @@ def evm_edges_for_address(address: str, chain_id: int, start: int | None, end: i
                     "tx": row.get("hash"),
                     "timestamp": ts,
                     "time": format_time(ts) if ts else None,
-                    "type": edge_type,
+                    "type": classification["edge_type"],
+                    "intent": classification["intent"],
                     "source": provider,
                     "score": 0,
-                    "evidence": f"{provider} {action} {shorten(row.get('hash'))}",
+                    "eligible_for_scoring": classification["eligible_for_scoring"],
+                    "classification": classification,
+                    "evidence": f"{provider} {action} {shorten(row.get('hash'))}: {classification['reason']}",
                 }
             )
     return out
@@ -488,11 +1164,29 @@ def edge_neighbor(edge: dict[str, Any], address: str) -> str | None:
     return None
 
 
+def edge_scoreable(graph: ClusterGraph, edge: dict[str, Any]) -> bool:
+    if edge.get("type") not in POSITIVE_SCORING_EDGE_TYPES:
+        return False
+    if not edge.get("eligible_for_scoring"):
+        return False
+    return graph.node_scoreable(edge["from"]) and graph.node_scoreable(edge["to"]) and edge["from"] != edge["to"]
+
+
+def edge_expandable(graph: ClusterGraph, edge: dict[str, Any], next_id: str) -> bool:
+    if edge.get("type") in NON_SCORING_EDGE_TYPES:
+        return False
+    if not edge.get("eligible_for_scoring"):
+        return False
+    return graph.node_scoreable(next_id)
+
+
 def analyze_common_patterns(graph: ClusterGraph, seed_ids: set[str], min_score: int) -> list[dict[str, Any]]:
     by_to: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_from: dict[str, list[dict[str, Any]]] = defaultdict(list)
     seed_direct_pairs: list[dict[str, Any]] = []
     for edge in graph.edges:
+        if not edge_scoreable(graph, edge):
+            continue
         by_to[edge["to"]].append(edge)
         by_from[edge["from"]].append(edge)
         if edge["from"] in seed_ids and edge["to"] in seed_ids:
@@ -512,6 +1206,8 @@ def analyze_common_patterns(graph: ClusterGraph, seed_ids: set[str], min_score: 
             graph.add_score(source, 7, "same non-service address funded multiple seeds", seed_targets)
     all_seed_neighbors: dict[str, set[str]] = defaultdict(set)
     for edge in graph.edges:
+        if not edge_scoreable(graph, edge):
+            continue
         if edge["from"] in seed_ids and edge["to"] not in seed_ids:
             all_seed_neighbors[edge["to"]].add(edge["from"])
         if edge["to"] in seed_ids and edge["from"] not in seed_ids:
@@ -521,6 +1217,8 @@ def analyze_common_patterns(graph: ClusterGraph, seed_ids: set[str], min_score: 
             graph.add_score(candidate, 5, "same address is one-hop neighbor of multiple seeds", [e for e in graph.edges if e["from"] == candidate or e["to"] == candidate])
     adjacency: dict[str, list[tuple[str, dict[str, Any]]]] = defaultdict(list)
     for edge in graph.edges:
+        if not edge_scoreable(graph, edge):
+            continue
         adjacency[edge["from"]].append((edge["to"], edge))
         adjacency[edge["to"]].append((edge["from"], edge))
     multi_seed_reach: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(dict)
@@ -547,12 +1245,14 @@ def analyze_common_patterns(graph: ClusterGraph, seed_ids: set[str], min_score: 
                 evidence_edges.extend(path[:3])
             graph.add_score(candidate, 6, "multi-hop paths from multiple seeds converge on this address", evidence_edges)
     for nid, node in graph.nodes.items():
-        if node.get("type") in {"bridge", "dex", "cex", "service", "contract"}:
-            graph.add_score(nid, -5, "service/infrastructure node is downgraded", [])
+        if nid not in seed_ids and not graph.node_scoreable(nid):
+            graph.add_score(nid, -5, "service/infrastructure node is excluded from candidate scoring", [])
     graph.finalize_scores()
     candidates = []
     for nid, node in graph.nodes.items():
         if nid in seed_ids:
+            continue
+        if not graph.node_scoreable(nid):
             continue
         score = int(node.get("score") or 0)
         if score >= min_score:
@@ -625,7 +1325,13 @@ def build_markdown(result: dict[str, Any]) -> str:
     high = [c for c in result["candidates"] if c["confidence"] == "high"]
     med = [c for c in result["candidates"] if c["confidence"] == "medium"]
     low = [c for c in result["candidates"] if c["confidence"] == "low"]
+    service_nodes = [n for n in result["nodes"] if n.get("type") != "seed" and not n.get("candidate_eligible")]
+    platform_edges = [e for e in result["edges"] if e.get("type") in {"swap_or_dex_route", "contract_interaction", "platform_deposit", "platform_internal"}]
+    excluded_edges = [e for e in result["edges"] if not e.get("eligible_for_scoring")]
     lines.append(f"- Candidates above threshold: {len(result['candidates'])} (high {len(high)}, medium {len(med)}, low {len(low)}).")
+    lines.append(f"- Service/infrastructure nodes excluded from candidate scoring: {len(service_nodes)}.")
+    if platform_edges:
+        lines.append(f"- Shared platform/DEX interactions recorded but not scored: {len(platform_edges)}.")
     if result["summary"].get("bridge_edges"):
         lines.append(f"- Bridge/orderbook edges found: {result['summary']['bridge_edges']}.")
     if result["warnings"]:
@@ -636,7 +1342,7 @@ def build_markdown(result: dict[str, Any]) -> str:
     for seed in result["seed_addresses"]:
         lines.append(f"- `{seed['chain']}` `{seed['address']}`")
     lines.append("")
-    lines.append("## Candidate Addresses")
+    lines.append("## Candidate Related Wallets")
     lines.append("")
     if result["candidates"]:
         lines.append("| Confidence | Score | Chain | Type | Address | Main Evidence |")
@@ -648,12 +1354,47 @@ def build_markdown(result: dict[str, Any]) -> str:
     else:
         lines.append("No candidate crossed the configured score threshold.")
     lines.append("")
+    lines.append("## Service / Infrastructure Nodes")
+    lines.append("")
+    if service_nodes:
+        lines.append("| Chain | Type | Address | Source | Label |")
+        lines.append("|---|---|---|---|---|")
+        for node in service_nodes[:80]:
+            label = "; ".join(str(hit.get("text", "")) for hit in node.get("labels") or [])[:120]
+            lines.append(f"| {node.get('chain')} | {node.get('type')} | `{node.get('address')}` | {node.get('classification_source')} | {label} |")
+    else:
+        lines.append("No service/infrastructure node was identified in the inspected graph.")
+    lines.append("")
+    lines.append("## Shared Platform Interactions")
+    lines.append("")
+    if platform_edges:
+        for edge in platform_edges[:80]:
+            detail = ""
+            if edge.get("type") == "swap_or_dex_route":
+                detail = f" input `{edge.get('input_amount')}` `{edge.get('input_asset')}` output `{edge.get('output_amount')}` `{edge.get('output_asset')}`"
+            lines.append(
+                f"- `{edge['type']}` platform `{edge.get('platform') or 'unknown'}` `{edge['from']}` tx `{shorten(edge.get('tx'))}` time `{edge.get('time')}`{detail}. This is protocol activity, not wallet-cluster proof."
+            )
+    else:
+        lines.append("No DEX/platform interaction was separated in the inspected scope.")
+    lines.append("")
+    lines.append("## Excluded From Scoring")
+    lines.append("")
+    if excluded_edges:
+        for edge in excluded_edges[:80]:
+            lines.append(f"- `{edge['type']}` `{edge['from']}` -> `{edge['to']}` tx `{shorten(edge.get('tx'))}` reason `{edge.get('excluded_reason')}`")
+    else:
+        lines.append("No edge was excluded after semantic classification.")
+    lines.append("")
     lines.append("## Relationship Evidence")
     lines.append("")
-    for edge in result["edges"][:80]:
+    scoring_edges = [edge for edge in result["edges"] if edge.get("eligible_for_scoring")]
+    for edge in scoring_edges[:80]:
         lines.append(
             f"- `{edge['type']}` `{edge['from']}` -> `{edge['to']}` asset `{edge.get('asset')}` amount `{edge.get('amount')}` tx `{shorten(edge.get('tx'))}` time `{edge.get('time')}` source `{edge.get('source')}`"
         )
+    if not scoring_edges:
+        lines.append("No scoring-eligible wallet-to-wallet transfer edge was found in the inspected scope.")
     lines.append("")
     lines.append("## Stop Points And Coverage")
     lines.append("")
@@ -671,7 +1412,8 @@ def build_markdown(result: dict[str, Any]) -> str:
     lines.append("## Risk Notes")
     lines.append("")
     lines.append("- This output is chain-analysis clustering, not identity proof.")
-    lines.append("- DEX routers, pools, bridge solvers, CEX hot wallets, and high-frequency service nodes are downgraded or stopped.")
+    lines.append("- Shared Pump.fun/PumpSwap/Raydium/Orca/Meteora/Jupiter or other DEX interaction does not prove the wallets are the same cluster.")
+    lines.append("- DEX routers, pools, bridge solvers, CEX hot wallets, token accounts, programs, and high-frequency service nodes are excluded from positive scoring.")
     lines.append("- Deeper hops increase false positives; review score evidence before merging candidates into a real entity cluster.")
     return "\n".join(lines) + "\n"
 
@@ -737,7 +1479,7 @@ def main() -> None:
         else:
             for chain_id in evm_chain_ids:
                 seed_ids.add(node_id(chain_name(chain_id), seed["address"]))
-    graph = ClusterGraph(labels, seed_ids)
+    graph = ClusterGraph(labels, seed_ids, args.rpc_url)
     for seed in seeds:
         if seed["chain_kind"] == SOLANA_CHAIN:
             graph.add_node(SOLANA_CHAIN, seed["address"], "seed")
@@ -761,14 +1503,15 @@ def main() -> None:
         if key in visited:
             continue
         visited.add(key)
-        if is_service_address(chain, address, labels) and args.stop_at_platform and node_id(chain, address) not in seed_ids:
+        current_id = graph.add_node(chain, address, "seed" if node_id(chain, address) in seed_ids else "candidate")
+        if args.stop_at_platform and current_id not in seed_ids and not graph.node_scoreable(current_id):
             graph.stop_points.append({"node": node_id(chain, address), "status": "closed_to_platform_wallet", "reason": "service or infrastructure node"})
             continue
         try:
             if chain == SOLANA_CHAIN:
                 if hop >= args.max_hop_solana:
                     continue
-                raw_edges = solana_edges_for_address(address, start, end, args.rpc_url, min(args.solana_limit, args.max_edges_per_node))
+                raw_edges = solana_edges_for_address(address, start, end, args.rpc_url, min(args.solana_limit, args.max_edges_per_node), labels)
                 for edge in raw_edges[: args.max_edges_per_node]:
                     src, dst = edge["from"], edge["to"]
                     edge["hop"] = hop + 1
@@ -777,7 +1520,8 @@ def main() -> None:
                         if not follow_relay_for_edge(graph, edge):
                             graph.warnings.append(f"bridge_orderbook_missing for possible bridge tx {shorten(edge.get('tx'))}")
                     neighbor = edge_neighbor(edge, address)
-                    if neighbor and not is_service_address(SOLANA_CHAIN, neighbor, labels) and hop + 1 < args.max_hop_solana:
+                    neighbor_id = node_id(SOLANA_CHAIN, neighbor) if neighbor else None
+                    if neighbor and neighbor_id and edge_expandable(graph, edge, neighbor_id) and hop + 1 < args.max_hop_solana:
                         queue.append((SOLANA_CHAIN, neighbor, hop + 1))
             else:
                 if hop >= args.max_hop_evm:
@@ -788,7 +1532,7 @@ def main() -> None:
                 chain_id = next((cid for cid, name in CHAIN_NAMES.items() if name == chain), None)
                 if chain_id is None or chain_id == 792703809:
                     continue
-                raw_edges = evm_edges_for_address(address, chain_id, start, end, evm_provider, min(args.evm_limit, args.max_edges_per_node))
+                raw_edges = evm_edges_for_address(address, chain_id, start, end, evm_provider, min(args.evm_limit, args.max_edges_per_node), labels)
                 for edge in raw_edges[: args.max_edges_per_node]:
                     src, dst = edge["from"], edge["to"]
                     edge["hop"] = hop + 1
@@ -797,7 +1541,8 @@ def main() -> None:
                         if (src in KNOWN_EVM_SERVICE_ADDRESSES or dst in KNOWN_EVM_SERVICE_ADDRESSES) and not follow_relay_for_edge(graph, edge):
                             graph.warnings.append(f"bridge_orderbook_missing for possible EVM bridge tx {shorten(edge.get('tx'))}")
                     neighbor = edge_neighbor(edge, address)
-                    if neighbor and not is_service_address(chain, neighbor, labels) and hop + 1 < args.max_hop_evm:
+                    neighbor_id = node_id(chain, neighbor) if neighbor else None
+                    if neighbor and neighbor_id and edge_expandable(graph, edge, neighbor_id) and hop + 1 < args.max_hop_evm:
                         queue.append((chain, neighbor, hop + 1))
         except Exception as exc:
             graph.warnings.append(f"Expansion skipped for {chain}:{shorten(address)} hop {hop}: {str(exc)[:240]}")

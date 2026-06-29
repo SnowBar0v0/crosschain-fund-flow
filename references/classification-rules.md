@@ -48,15 +48,18 @@ Checklist:
 1. Pull signatures for both owner addresses and token accounts.
 2. Compare `preBalances/postBalances` for SOL and `preTokenBalances/postTokenBalances` for tokens.
 3. Use token balance `owner` to attribute token-account deltas to wallets.
-4. Inspect inner instructions for CPI, swaps, WSOL unwraps, close-account rent returns, and ATA creation.
-5. Do not treat system program, token program, ATA program, router, pool, or temporary token account as terminal wallets.
+4. Classify the transaction intent before creating graph edges: `plain_transfer`, `token_transfer`, `swap_or_dex_route`, `bridge_order`, `account_create_close`, `wrap_unwrap_native`, `fee_or_rent_noise`, or `unknown_complex`.
+5. Inspect inner instructions for CPI, swaps, WSOL unwraps, close-account rent returns, and ATA creation.
+6. Do not treat system program, token program, ATA program, router, pool, bonding curve, market, fee account, or temporary token account as terminal wallets.
 
 Common Solana interpretations:
 
 - Token account close can create SOL balance increases without being a transfer of trading profit.
 - WSOL unwrap can look like SOL received; verify wrapped token account changes.
 - DEX routes often show several pool/token-account deltas; explain the net owner asset changes.
+- Pump.fun AMM, PumpSwap, Pump.fun bonding-curve buy/sell, Raydium, Orca, Meteora, Jupiter, OpenBook, Phoenix, Lifinity, Saber, and Mercurial interactions are protocol routes. Shared pool/router/market interaction is not a related-wallet signal by itself.
 - If an owner address shows no new signatures, still check its token account signatures.
+- For cluster expansion, only `direct_value_transfer` and `token_owner_transfer` between candidate-eligible wallets can add positive score.
 
 ## EVM
 
@@ -72,6 +75,8 @@ Checklist:
 Common EVM interpretations:
 
 - DEX router calls can emit token transfers to pools and back to the user; report input/output assets, not only the router address.
+- `approve`, `permit`, allowance updates, router/multicall calls, and zero-value contract calls are not ordinary wallet-to-wallet transfer evidence.
+- A token `Transfer` event emitted during a router/pool call should be treated cautiously unless the counterparty is a candidate-eligible owner wallet.
 - Internal tx may show native asset movement that token transfer endpoints miss.
 - Stablecoin bridge orders may show origin asset and destination asset with different token contracts but equivalent symbol/value.
 

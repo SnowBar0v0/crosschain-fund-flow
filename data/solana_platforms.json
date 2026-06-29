@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "description": "Solana platform semantics used by expand_crosschain_cluster.py. Program ids can be extended as verified; labels/log terms are used as conservative protocol-interaction signals.",
+  "platforms": [
+    {
+      "id": "pump.fun_amm",
+      "name": "Pump.fun AMM / PumpSwap",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Pump.fun AMM",
+        "PumpSwap",
+        "Instruction: Buy",
+        "Instruction: Sell",
+        "Invoking Pump.fun AMM",
+        "Invoking Pump Fees Program",
+        "Pump Fees Program"
+      ],
+      "account_label_terms": [
+        "pump.fun amm",
+        "pumpswap",
+        "pump swap",
+        "amm pool",
+        "amm market",
+        "protocol fee",
+        "creator fee"
+      ]
+    },
+    {
+      "id": "pump.fun_bonding_curve",
+      "name": "Pump.fun Bonding Curve",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Pump.fun",
+        "Bonding Curve",
+        "Instruction: Buy",
+        "Instruction: Sell"
+      ],
+      "account_label_terms": [
+        "pump.fun",
+        "bonding curve",
+        "creator vault"
+      ]
+    },
+    {
+      "id": "jupiter",
+      "name": "Jupiter",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Jupiter",
+        "SharedAccountsRoute",
+        "Route"
+      ],
+      "account_label_terms": [
+        "jupiter",
+        "jupiter router"
+      ]
+    },
+    {
+      "id": "raydium",
+      "name": "Raydium",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Raydium",
+        "ray_log",
+        "swap_base_in",
+        "swap_base_out"
+      ],
+      "account_label_terms": [
+        "raydium",
+        "raydium pool",
+        "amm pool"
+      ]
+    },
+    {
+      "id": "orca",
+      "name": "Orca",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Orca",
+        "Whirlpool",
+        "Swap"
+      ],
+      "account_label_terms": [
+        "orca",
+        "whirlpool",
+        "orca pool"
+      ]
+    },
+    {
+      "id": "meteora",
+      "name": "Meteora",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Meteora",
+        "DLMM",
+        "Dynamic AMM",
+        "Swap"
+      ],
+      "account_label_terms": [
+        "meteora",
+        "dlmm",
+        "meteora pool"
+      ]
+    },
+    {
+      "id": "openbook",
+      "name": "OpenBook",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "OpenBook",
+        "ConsumeEvents",
+        "PlaceOrder"
+      ],
+      "account_label_terms": [
+        "openbook",
+        "openbook market",
+        "market"
+      ]
+    },
+    {
+      "id": "phoenix",
+      "name": "Phoenix",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Phoenix",
+        "Swap",
+        "PlaceLimitOrder"
+      ],
+      "account_label_terms": [
+        "phoenix",
+        "phoenix market"
+      ]
+    },
+    {
+      "id": "lifinity",
+      "name": "Lifinity",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Lifinity",
+        "Swap"
+      ],
+      "account_label_terms": [
+        "lifinity",
+        "lifinity pool"
+      ]
+    },
+    {
+      "id": "saber_mercurial",
+      "name": "Saber / Mercurial",
+      "category": "dex",
+      "intent": "swap_or_dex_route",
+      "program_ids": [],
+      "log_keywords": [
+        "Saber",
+        "Mercurial",
+        "StableSwap",
+        "Swap"
+      ],
+      "account_label_terms": [
+        "saber",
+        "mercurial",
+        "stable swap",
+        "stable pool"
+      ]
+    }
+  ],
+  "service_account_terms": [
+    "router",
+    "pool",
+    "amm",
+    "market",
+    "bonding curve",
+    "vault",
+    "protocol fee",
+    "creator fee",
+    "fee account",
+    "temporary",
+    "token account",
+    "program",
+    "solver",
+    "bridge",
+    "cex",
+    "exchange",
+    "hot wallet",
+    "deposit"
+  ],
+  "non_flow_instruction_types": [
+    "approve",
+    "revoke",
+    "create",
+    "createAccount",
+    "createAssociatedTokenAccount",
+    "initializeAccount",
+    "initializeAccount2",
+    "initializeAccount3",
+    "closeAccount",
+    "syncNative"
+  ]
+}

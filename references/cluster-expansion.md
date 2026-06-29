@@ -23,7 +23,7 @@ python scripts/expand_crosschain_cluster.py \
 It supports:
 
 - seed lists from CLI or `--seed-file`;
-- Solana RPC multi-hop transfer graph using SOL/token owner balance deltas;
+- Solana RPC multi-hop transfer graph using transaction semantic classification plus SOL/token owner balance deltas;
 - EVM account-action expansion through Etherscan or Blockscout when keys are configured;
 - Relay orderbook lookup when bridge-like edges are detected;
 - label matching from user spreadsheets;
@@ -34,7 +34,9 @@ It supports:
 The first bundled version is intentionally conservative:
 
 - Solana expansion uses RPC signatures and parsed transaction balance deltas.
+- Solana transactions are classified before edge generation. DEX/router/AMM, account rent/close, WSOL wrap/unwrap, bridge deposit, and unknown complex transactions are preserved as evidence but do not create positive candidate edges.
 - EVM expansion uses account actions: normal tx, ERC20 transfers, and internal tx.
+- EVM approve/permit, zero-value contract calls, router/multicall/swap-like calls, and service endpoints are non-scoring edges unless receipts/logs prove a clean wallet-to-wallet value transfer.
 - Relay orderbook is first-class. Other bridges should be treated as future coverage unless a dedicated orderbook API is added or manually checked.
 - OKX token trade co-activity is not yet merged into cluster scoring automatically.
 - High-frequency fanout detection is heuristic; do not force a terminal conclusion from service-like nodes.
@@ -67,6 +69,31 @@ Use these default signals:
 -3 same token activity without fund-path overlap
 ```
 
+Only direct economic wallet edges can add positive score:
+
+```text
+direct_value_transfer
+token_owner_transfer
+```
+
+These edges are evidence only and must not create related-wallet candidates:
+
+```text
+swap_or_dex_route
+swap_user_input
+swap_user_output
+swap_fee
+liquidity_action
+account_rent_or_close
+wrap_unwrap_native
+bridge_deposit
+bridge_fill
+platform_deposit
+platform_internal
+contract_interaction
+unknown_complex
+```
+
 Confidence:
 
 ```text
@@ -79,17 +106,20 @@ score < 4: ignore unless --include-low-confidence
 ## Interpretation Rules
 
 - Treat DEX routers, pools, bridge solvers, CEX hot wallets, and program accounts as infrastructure, not personal wallets.
+- Shared DEX, Pump.fun/PumpSwap, router, AMM pool, bonding curve, or platform interaction is not enough to classify wallets as related.
+- Resolve token account owners before graph construction. Token accounts and program-owned/PDA accounts are not candidates unless there is separate evidence of user control.
 - A common CEX deposit address is useful evidence of convergence, but it is weaker than a non-service shared funder or recipient.
 - Multi-hop convergence is a clue, not proof. Increase skepticism as hop depth increases.
 - Use labels as attribution support, not the only transaction truth source.
 - If bridge orderbooks are unavailable, mark the gap and do not infer the destination recipient from router transfers alone.
+- Use `references/solana-platforms.md` and `data/solana_platforms.json` when extending Solana DEX/platform classifications.
 
 ## Output Expectations
 
 The JSON graph should include:
 
 - `nodes`: seed, candidate, bridge, dex, cex, service, or contract nodes;
-- `edges`: transfer, token_transfer, bridge, evm_native, evm_erc20, evm_internal, shared_funder, shared_recipient, or contract_interaction edges;
+- `edges`: direct_value_transfer, token_owner_transfer, bridge, bridge_deposit, bridge_fill, swap_or_dex_route, contract_interaction, platform_deposit, platform_internal, account_rent_or_close, wrap_unwrap_native, unknown_complex, shared_funder, or shared_recipient edges;
 - `clusters`: seed set, candidates, score, confidence, and main evidence;
 - `warnings`: coverage or stop-point notes.
 
@@ -97,6 +127,9 @@ The Markdown report should lead with:
 
 - high/medium/low candidate count;
 - whether cross-chain bridge convergence was found;
-- candidate table with score and main evidence;
-- compact relationship evidence;
+- candidate related wallet table with score and main evidence;
+- service/infrastructure nodes;
+- shared platform interactions;
+- excluded-from-scoring edges and reasons;
+- compact scoring-eligible relationship evidence;
 - stop points and risk notes.

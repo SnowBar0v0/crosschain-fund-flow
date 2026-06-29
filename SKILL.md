@@ -29,6 +29,7 @@ This skill includes runnable executors for the common trace paths, but it is not
    - Plain-language request parsing and executor routing: read `references/request-routing.md`.
    - Bridge/orderbook work: read `references/bridge-orderbooks.md`.
    - Cross-chain multi-hop cluster expansion and related-wallet scoring: read `references/cluster-expansion.md`.
+   - Solana DEX/platform semantic classification for cluster expansion: read `references/solana-platforms.md`.
    - Classification/stopping decisions: read `references/classification-rules.md`.
    - Report formatting: read `references/report-style.md`.
    - Bulk data processing, top-N analysis, or local scripts: read `references/execution-boundaries.md`.
@@ -45,7 +46,7 @@ Use the best available factual source for the chain, and make the source visible
   - For questions like "JAK addresses that ever traded", "cleared position", "no current holding but had transactions", or "historical label participants", use `trace_solana_mint_label_history.py` against the candidate label/address list. Do not use a current holder snapshot to claim full historical participation.
   - Binance Web3 token pages may expose visible `历史成交` rows, but until a stable global pagination API is confirmed, treat Binance page data as browser-visible supporting evidence rather than the primary historical source.
   - Use Solana RPC for signatures, transaction details, token account balances, and verification.
-  - For Solana cluster expansion, use `expand_crosschain_cluster.py` with Solana RPC owner-delta attribution. Do not treat token accounts, programs, routers, pools, or temporary accounts as personal candidates.
+  - For Solana cluster expansion, use `expand_crosschain_cluster.py` with transaction semantic classification and Solana RPC owner-delta attribution. Do not treat token accounts, programs, routers, pools, bonding curves, fee accounts, or temporary accounts as personal candidates. Shared DEX/platform interaction is not related-wallet proof.
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 
 - EVM:
@@ -178,6 +179,7 @@ Use `references/classification-rules.md` for detailed heuristics. The most impor
 - On Solana, inspect CPI, inner instructions, owner token balances, WSOL unwraps, and token account signatures.
 - On EVM, inspect normal tx, ERC-20 transfers, internal tx, event logs, router calls, multicall, and contract code status.
 - Do not identify a program, router, pool, solver, or exchange hot wallet as a personal terminal wallet.
+- In cluster expansion, only clean wallet-to-wallet `direct_value_transfer` and `token_owner_transfer` edges may add positive related-wallet score. Keep swaps, pools, fee accounts, account close/rent, wrap/unwrap, approvals, and contract calls as non-scoring evidence.
 
 ## Output Rules
 

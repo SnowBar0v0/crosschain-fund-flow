@@ -22,6 +22,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 - 追踪 Solana 与 EVM 地址在指定时间窗口内的资金流。
 - 从一批 seed 地址出发，做跨链多跳聚类和候选关联地址扩展。
+- 在聚类扩展前先做交易语义分类，避免把 Pump.fun/PumpSwap、Raydium、Orca、Meteora、Jupiter 等 DEX/平台交互误判成钱包转账或关联地址。
 - 通过 Relay、Mayan、Gas.zip、deBridge、THORChain、NEAR Intents、ChangeNOW、FixedFloat 等桥或服务继续闭环。
 - 优先使用跨链桥订单簿确认目标链、目标地址和到账交易，不靠猜。
 - 遇到 CEX、平台钱包、Hyperliquid 账户或桥基础设施时做标记并停止。
@@ -39,6 +40,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 - Trace Solana and EVM wallet flows within a user-defined time window.
 - Expand likely related-wallet clusters from seed addresses across Solana, EVM chains, and bridge landings.
+- Classify transaction semantics before cluster scoring so Pump.fun/PumpSwap, Raydium, Orca, Meteora, Jupiter, and other DEX/platform interactions are not misread as wallet transfers or related wallets.
 - Follow bridge routes through Relay, Mayan, Gas.zip, deBridge, THORChain, NEAR Intents, ChangeNOW, and FixedFloat workflows.
 - Use bridge orderbooks when available instead of guessing destination addresses from raw transfers.
 - Mark CEX, platform wallets, Hyperliquid accounts, and bridge infrastructure as service endpoints.
@@ -153,6 +155,8 @@ Use `--top 10`, `--top 20`, `--top 50`, or any requested count. The default is 2
 
 Use `expand_crosschain_cluster.py` when the user already has seed addresses and wants likely related wallets, common funders, common recipients, cross-chain bridge convergence, or multi-hop cluster evidence. The output is candidate scoring and evidence, not identity proof.
 
+Cluster scoring only treats clean wallet-to-wallet `direct_value_transfer` and `token_owner_transfer` edges as positive evidence. DEX swaps, pools, routers, bonding curves, fee accounts, token accounts, programs, bridge routers/solvers, CEX/platform wallets, approvals, account rent/close, wrap/unwrap, and unknown complex contract routes are shown as evidence or stop points but excluded from positive candidate scoring.
+
 Use `fetch_okx_token_trades.py` when the user needs no-key historical DEX trading activity for a Solana or EVM token. It uses OKX Web3's public trading-activity endpoint and supports time windows, pagination, top-N participant ranking, and label-sheet matching.
 
 Use `trace_solana_mint_label_history.py` when the user wants to know whether addresses from a label sheet ever participated in a mint window, including wallets that bought/sold and later cleared to zero. It scans candidate owner signatures through Solana RPC and reports historical-only hits separately from current holders. This is candidate verification, not global all-wallet discovery.
@@ -162,12 +166,15 @@ Use `trace_solana_mint_label_history.py` when the user wants to know whether add
 ```text
 SKILL.md
 agents/openai.yaml
+data/
+  solana_platforms.json
 references/
   request-routing.md
   api-setup.md
   bridge-orderbooks.md
   cluster-expansion.md
   classification-rules.md
+  solana-platforms.md
   report-style.md
 scripts/
   trace_solana_wallet.py
@@ -187,6 +194,8 @@ scripts/
 - If the destination wallet sends funds onward, the skill asks before continuing.
 - High-frequency fanout addresses are not forced into fake terminal conclusions.
 - DEX routers, pools, solvers, token programs, and temporary accounts are not treated as personal wallets.
+- Shared Pump.fun/PumpSwap/Raydium/Orca/Meteora/Jupiter or other DEX/platform interaction is not sufficient related-wallet evidence.
+- Cluster expansion scores only direct economic wallet-to-wallet transfer edges.
 - Arkham labels are used as attribution intelligence, not as the only transaction truth source.
 - Cluster expansion returns related-wallet candidates, not identity attribution.
 - Multi-hop results must be interpreted through score, confidence, and evidence because false positives rise with depth.

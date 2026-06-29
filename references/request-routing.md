@@ -90,6 +90,8 @@ Use Relay by default only when Relay is mentioned or a Relay address/router/labe
 
 Trigger when the user provides a batch of seed addresses and asks to find likely related wallets, common funders, common recipients, multi-hop links, bridge-after-EVM links, or hidden/cleared related wallets.
 
+Also trigger when the user reports that DEX/pool/router/platform interactions were misclassified as wallet transfers, or asks whether shared Pump.fun/PumpSwap/Raydium/Jupiter/Orca/Meteora activity proves related wallets.
+
 Trigger phrases include:
 
 ```text
@@ -105,6 +107,12 @@ related wallets
 common funder
 common recipient after bridge
 cleared/hidden related wallet
+DEX 被误判成转账
+平台交易被误判成关联地址
+共同池子是不是关联
+Pump.fun AMM shared pool
+shared DEX interaction
+router misclassified as wallet
 ```
 
 Executor:
@@ -122,6 +130,13 @@ python scripts/expand_crosschain_cluster.py \
 ```
 
 Use `--seed-file` when the user provides a file. Use `--chain auto` unless all seeds are explicitly Solana or EVM. Add `--label-file` and `--label-sheets` when the user provides label workbooks such as JAK, exchange, or router sheets.
+
+Semantic guardrails:
+
+- The executor classifies transaction intent before graph scoring.
+- Only `direct_value_transfer` and `token_owner_transfer` between candidate-eligible wallets add positive score.
+- DEX swaps, Pump.fun/PumpSwap AMM or bonding-curve trades, router/pool/market/fee-account interaction, account rent/close, wrap/unwrap, EVM approve/permit, and contract/router/multicall calls are evidence-only edges.
+- Shared platform/DEX interaction should be reported separately from candidate related wallets.
 
 Defaults:
 
