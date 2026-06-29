@@ -40,6 +40,8 @@ https://api.etherscan.io/v2/api?chainid=<chainId>&module=account&action=<action>
 
 Needed actions: `txlist`, `tokentx`, `txlistinternal`, logs, receipts/proxy where available.
 
+Cluster expansion uses these account actions for EVM multi-hop graph edges. If the user asks for EVM-side or cross-chain cluster expansion and no Etherscan/Blockscout key is configured, report `not_closed_insufficient_api_coverage` and ask only for the missing EVM key.
+
 Ask the user to create a key from the Etherscan API dashboard. Remind them that the free tier covers selected chains only; BNB/Base/OP/Avalanche may require another provider or a paid tier depending on the current official list.
 
 ### Blockscout PRO API
@@ -76,6 +78,7 @@ Use public market holder providers, Helius, or Solana RPC by default. Use Solsca
 
 - Solscan Pro/Helius are better for enhanced decoded transaction data, but Solscan Pro usually requires paid access.
 - Solana RPC is enough for signatures, parsed transactions, balances, token-account owner checks, and verification.
+- Solana cluster expansion can run on public RPC for smaller seed sets, but rate limits and missing historical availability may affect multi-hop completeness.
 - Candidate label-history scans can use Solana RPC without Solscan Pro: they scan the supplied owner addresses and inspect parsed token balance deltas. This is good for "did these label-sheet addresses ever trade in this window" checks, but it can be slower and can miss activity that only appears through token-account-only history or unavailable RPC history.
 - Public OKX/APIBase and Binance Web3 market endpoints can provide token holder snapshots, token metadata, price, market cap, holder count, launch/create time, funding-source hints, and top-holder fallback without a user API key. Treat these as market-data providers.
 - OKX Web3 token `交易活动` can provide no-key Solana and supported EVM token historical DEX trade rows through the bundled `fetch_okx_token_trades.py` executor, including wallet, tx hash, buy/sell side, token amount, value, DEX, tags, and pagination. Use Solana `chainId=501`; for EVM contracts, use the normal EIP-155 chain id such as Ethereum `1`, BNB Chain `56`, Base `8453`, Arbitrum `42161`, Optimism `10`, Polygon `137`, or Avalanche `43114`. Treat it as a historical DEX-trade index, not complete raw token-transfer truth.

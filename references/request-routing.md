@@ -23,7 +23,7 @@ Internally normalize every request into:
 
 ```json
 {
-  "task_type": "solana_wallet | evm_wallet | bridge_order | solana_mint_participants | okx_token_trades | solana_mint_label_history | label_match | manual_analysis",
+  "task_type": "solana_wallet | evm_wallet | crosschain_cluster_expansion | bridge_order | solana_mint_participants | okx_token_trades | solana_mint_label_history | label_match | manual_analysis",
   "inputs": {
     "addresses": [],
     "tx_hashes": [],
@@ -85,6 +85,56 @@ python scripts/trace_bridge_order.py --bridge relay --address <address>
 ```
 
 Use Relay by default only when Relay is mentioned or a Relay address/router/label is known. Otherwise infer bridge name from labels or ask.
+
+### Cross-Chain Cluster Expansion
+
+Trigger when the user provides a batch of seed addresses and asks to find likely related wallets, common funders, common recipients, multi-hop links, bridge-after-EVM links, or hidden/cleared related wallets.
+
+Trigger phrases include:
+
+```text
+已知这些地址是一个集群，继续扒关联地址
+根据这些地址找可能关联的钱包
+找共同资金来源
+找共同接收地址
+多层地址后有关联
+跨链桥后在 EVM 有关联
+multi-hop cluster expansion
+cross-chain cluster
+related wallets
+common funder
+common recipient after bridge
+cleared/hidden related wallet
+```
+
+Executor:
+
+```bash
+python scripts/expand_crosschain_cluster.py \
+  --seed-addresses <addr1> <addr2> \
+  --from-time <from> \
+  --to-time <to> \
+  --post-window-hours 72 \
+  --max-hop-solana 2 \
+  --max-hop-evm 1 \
+  --bridge-follow true \
+  --min-score 5
+```
+
+Use `--seed-file` when the user provides a file. Use `--chain auto` unless all seeds are explicitly Solana or EVM. Add `--label-file` and `--label-sheets` when the user provides label workbooks such as JAK, exchange, or router sheets.
+
+Defaults:
+
+```text
+post-window-hours: 72
+max-hop-solana: 2 for MVP unless user asks deeper
+max-hop-evm: 1 for MVP unless user asks deeper and APIs are configured
+evm-chain-ids: 1,56,8453,42161,10,137,43114
+min-score: 5
+stop-at-platform: true
+```
+
+Report the result as candidate clustering, not identity proof. If EVM APIs, bridge orderbooks, or provider coverage are missing, return `not_closed_insufficient_api_coverage` or `bridge_orderbook_missing` rather than inventing paths.
 
 ### Solana Mint Participants
 

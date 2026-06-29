@@ -21,6 +21,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 ## 功能概览
 
 - 追踪 Solana 与 EVM 地址在指定时间窗口内的资金流。
+- 从一批 seed 地址出发，做跨链多跳聚类和候选关联地址扩展。
 - 通过 Relay、Mayan、Gas.zip、deBridge、THORChain、NEAR Intents、ChangeNOW、FixedFloat 等桥或服务继续闭环。
 - 优先使用跨链桥订单簿确认目标链、目标地址和到账交易，不靠猜。
 - 遇到 CEX、平台钱包、Hyperliquid 账户或桥基础设施时做标记并停止。
@@ -30,13 +31,14 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## 执行边界
 
-这个项目带有可运行的 Python 执行器，用于 Solana 地址追踪、EVM 第一层追踪、跨链桥订单查询、Solana mint top-N 参与者分析、OKX Web3 token 交易活动抓取、候选标签地址历史参与扫描和标签匹配。它不是全链索引器；遇到超大范围分页、缺 API 权限、跨链桥未公开订单簿或平台内部账本时，会说明缺口并给出下一步需要的 API、订单簿或授权入口。
+这个项目带有可运行的 Python 执行器，用于 Solana 地址追踪、EVM 第一层追踪、跨链多跳聚类扩展、跨链桥订单查询、Solana mint top-N 参与者分析、OKX Web3 token 交易活动抓取、候选标签地址历史参与扫描和标签匹配。它不是全链索引器；遇到超大范围分页、缺 API 权限、跨链桥未公开订单簿或平台内部账本时，会说明缺口并给出下一步需要的 API、订单簿或授权入口。
 
 它不会默认在用户项目里临时创建本地脚本；批量分析会优先调用 skill 自带的 `scripts/` 执行器。
 
 ## What It Does
 
 - Trace Solana and EVM wallet flows within a user-defined time window.
+- Expand likely related-wallet clusters from seed addresses across Solana, EVM chains, and bridge landings.
 - Follow bridge routes through Relay, Mayan, Gas.zip, deBridge, THORChain, NEAR Intents, ChangeNOW, and FixedFloat workflows.
 - Use bridge orderbooks when available instead of guessing destination addresses from raw transfers.
 - Mark CEX, platform wallets, Hyperliquid accounts, and bridge infrastructure as service endpoints.
@@ -46,7 +48,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## Execution Boundary
 
-This skill includes runnable Python executors for Solana wallet traces, EVM first-layer traces, bridge order lookups, Solana mint top-N participant analysis, OKX Web3 token trading activity, candidate label-address history scans, and label matching. It is not a full-chain indexer. For very large pagination jobs, missing API permissions, unavailable bridge orderbooks, or platform-internal ledgers, it should explain the gap and state what API, orderbook, or authorized session is needed next.
+This skill includes runnable Python executors for Solana wallet traces, EVM first-layer traces, cross-chain multi-hop cluster expansion, bridge order lookups, Solana mint top-N participant analysis, OKX Web3 token trading activity, candidate label-address history scans, and label matching. It is not a full-chain indexer. For very large pagination jobs, missing API permissions, unavailable bridge orderbooks, or platform-internal ledgers, it should explain the gap and state what API, orderbook, or authorized session is needed next.
 
 It should not silently create temporary scripts inside a user's project. Bulk analysis should use the bundled `scripts/` executors first.
 
@@ -134,6 +136,8 @@ python scripts/trace_evm_wallet.py --address <EVM_ADDRESS> --chain-id 8453 --fro
 
 python scripts/trace_bridge_order.py --bridge relay --address <EVM_OR_SOL_ADDRESS>
 
+python scripts/expand_crosschain_cluster.py --seed-addresses <ADDR1> <ADDR2> --from-time "2026-06-26 00:00" --to-time "2026-06-26 10:00" --post-window-hours 72 --max-hop-solana 2 --max-hop-evm 1 --bridge-follow true --min-score 5 --output-json outputs/cluster.json --output-md outputs/cluster.md
+
 python scripts/trace_solana_mint_participants.py --mint <MINT> --hours-after-create 3 --top 50 --label-file labels.xlsx --label-sheets JAK
 
 python scripts/fetch_okx_token_trades.py --mint <MINT> --from-time "2026-06-25 10:00" --to-time "2026-06-25 13:00" --top 50 --label-file labels.xlsx --label-sheets JAK
@@ -146,6 +150,8 @@ python scripts/label_match.py <ADDRESS> --label-file labels.xlsx --label-sheets 
 ```
 
 Use `--top 10`, `--top 20`, `--top 50`, or any requested count. The default is 20 only when the user does not specify a count.
+
+Use `expand_crosschain_cluster.py` when the user already has seed addresses and wants likely related wallets, common funders, common recipients, cross-chain bridge convergence, or multi-hop cluster evidence. The output is candidate scoring and evidence, not identity proof.
 
 Use `fetch_okx_token_trades.py` when the user needs no-key historical DEX trading activity for a Solana or EVM token. It uses OKX Web3's public trading-activity endpoint and supports time windows, pagination, top-N participant ranking, and label-sheet matching.
 
@@ -160,11 +166,13 @@ references/
   request-routing.md
   api-setup.md
   bridge-orderbooks.md
+  cluster-expansion.md
   classification-rules.md
   report-style.md
 scripts/
   trace_solana_wallet.py
   trace_evm_wallet.py
+  expand_crosschain_cluster.py
   trace_bridge_order.py
   trace_solana_mint_participants.py
   fetch_okx_token_trades.py
@@ -180,6 +188,8 @@ scripts/
 - High-frequency fanout addresses are not forced into fake terminal conclusions.
 - DEX routers, pools, solvers, token programs, and temporary accounts are not treated as personal wallets.
 - Arkham labels are used as attribution intelligence, not as the only transaction truth source.
+- Cluster expansion returns related-wallet candidates, not identity attribution.
+- Multi-hop results must be interpreted through score, confidence, and evidence because false positives rise with depth.
 
 ## Author
 

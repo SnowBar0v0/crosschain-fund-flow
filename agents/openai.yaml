@@ -1,4 +1,4 @@
 interface:
   display_name: "Crosschain Fund Flow"
-  short_description: "Trace Solana/EVM funds across bridges"
-  default_prompt: "Use $crosschain-fund-flow to trace these wallet addresses across Solana, EVM chains, and bridge orderbooks."
+  short_description: "Trace and cluster Solana/EVM funds across bridges"
+  default_prompt: "Use $crosschain-fund-flow to trace these wallet addresses or expand this seed cluster across Solana, EVM chains, and bridge orderbooks."

@@ -1,6 +1,6 @@
 ---
 name: crosschain-fund-flow
-description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, OKX Web3 token trade history, Solana mint label history scans, and label matching. Use when the user asks in plain language to trace wallet addresses, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
+description: Trace cryptocurrency fund flows and related-wallet clusters across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, cross-chain multi-hop cluster expansion, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, OKX Web3 token trade history, Solana mint label history scans, and label matching. Use when the user asks in plain language to trace wallet addresses, expand a seed wallet cluster, find related wallets, identify common funders/recipients, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
 ---
 
 # Crosschain Fund Flow
@@ -28,6 +28,7 @@ This skill includes runnable executors for the common trace paths, but it is not
 3. Load task-specific references only as needed:
    - Plain-language request parsing and executor routing: read `references/request-routing.md`.
    - Bridge/orderbook work: read `references/bridge-orderbooks.md`.
+   - Cross-chain multi-hop cluster expansion and related-wallet scoring: read `references/cluster-expansion.md`.
    - Classification/stopping decisions: read `references/classification-rules.md`.
    - Report formatting: read `references/report-style.md`.
    - Bulk data processing, top-N analysis, or local scripts: read `references/execution-boundaries.md`.
@@ -44,6 +45,7 @@ Use the best available factual source for the chain, and make the source visible
   - For questions like "JAK addresses that ever traded", "cleared position", "no current holding but had transactions", or "historical label participants", use `trace_solana_mint_label_history.py` against the candidate label/address list. Do not use a current holder snapshot to claim full historical participation.
   - Binance Web3 token pages may expose visible `历史成交` rows, but until a stable global pagination API is confirmed, treat Binance page data as browser-visible supporting evidence rather than the primary historical source.
   - Use Solana RPC for signatures, transaction details, token account balances, and verification.
+  - For Solana cluster expansion, use `expand_crosschain_cluster.py` with Solana RPC owner-delta attribution. Do not treat token accounts, programs, routers, pools, or temporary accounts as personal candidates.
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 
 - EVM:
@@ -52,6 +54,7 @@ Use the best available factual source for the chain, and make the source visible
   - Use Blockscout PRO for chains Etherscan free tier does not cover or when Blockscout has better decoded data.
   - Use Alchemy Transfers API for fast address-level asset transfer scans.
   - Use chain RPC for receipts, logs, code checks, and single-transaction verification.
+  - For EVM cluster expansion, use `expand_crosschain_cluster.py` with Etherscan/Blockscout account actions first, then receipts/logs/RPC for verification when needed.
 
 - Labels:
   - Use the user's label spreadsheets or local label store when provided.
@@ -60,6 +63,7 @@ Use the best available factual source for the chain, and make the source visible
 
 - Bridge orderbooks:
   - Query bridge-specific orderbooks before guessing destination addresses from raw transfers.
+  - For cluster expansion, represent bridge continuity as graph edges. Router, solver, pool, depository, and vault addresses are bridge infrastructure, not terminal entity wallets.
   - If a bridge/orderbook is unavailable, mark `bridge_orderbook_missing` and give the exact missing bridge/source.
 
 ## Workflow
@@ -85,6 +89,7 @@ When a bundled executor fits the request, run it instead of creating new scripts
 ```text
 scripts/trace_solana_wallet.py            Solana wallet time-window trace.
 scripts/trace_evm_wallet.py               EVM first-layer wallet trace.
+scripts/expand_crosschain_cluster.py      Cross-chain multi-hop cluster expansion and related-wallet scoring.
 scripts/trace_bridge_order.py             Relay/Gas.zip bridge order lookup.
 scripts/trace_solana_mint_participants.py Solana mint launch top-N participant analysis.
 scripts/fetch_okx_token_trades.py         OKX Web3 token trading activity and participant ranking.
