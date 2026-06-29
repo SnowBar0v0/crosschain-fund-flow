@@ -76,7 +76,10 @@ Use public market holder providers, Helius, or Solana RPC by default. Use Solsca
 
 - Solscan Pro/Helius are better for enhanced decoded transaction data, but Solscan Pro usually requires paid access.
 - Solana RPC is enough for signatures, parsed transactions, balances, token-account owner checks, and verification.
-- Public OKX/APIBase and Binance Web3 market endpoints can provide token holder snapshots, token metadata, price, market cap, holder count, launch/create time, funding-source hints, and top-holder fallback without a user API key. Treat these as market-data providers, not authoritative historical transfer indexes.
+- Candidate label-history scans can use Solana RPC without Solscan Pro: they scan the supplied owner addresses and inspect parsed token balance deltas. This is good for "did these label-sheet addresses ever trade in this window" checks, but it can be slower and can miss activity that only appears through token-account-only history or unavailable RPC history.
+- Public OKX/APIBase and Binance Web3 market endpoints can provide token holder snapshots, token metadata, price, market cap, holder count, launch/create time, funding-source hints, and top-holder fallback without a user API key. Treat these as market-data providers.
+- OKX Web3 token `交易活动` can provide no-key Solana token historical DEX trade rows through the bundled `fetch_okx_token_trades.py` executor, including wallet, tx hash, buy/sell side, token amount, value, DEX, tags, and pagination. Treat it as a historical DEX-trade index, not complete raw token-transfer truth.
+- Binance Web3 token `历史成交` pages can be inspected in a browser and may show useful wallet/trade rows, but do not treat Binance as a stable global historical API until the exact paginated endpoint is confirmed.
 
 If no enhanced Solana API is present, say that complex route decoding may be less complete.
 

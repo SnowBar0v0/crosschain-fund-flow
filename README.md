@@ -30,7 +30,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## 执行边界
 
-这个项目带有可运行的 Python 执行器，用于 Solana 地址追踪、EVM 第一层追踪、跨链桥订单查询、Solana mint top-N 参与者分析和标签匹配。它不是全链索引器；遇到超大范围分页、缺 API 权限、跨链桥未公开订单簿或平台内部账本时，会说明缺口并给出下一步需要的 API、订单簿或授权入口。
+这个项目带有可运行的 Python 执行器，用于 Solana 地址追踪、EVM 第一层追踪、跨链桥订单查询、Solana mint top-N 参与者分析、OKX Web3 token 交易活动抓取、候选标签地址历史参与扫描和标签匹配。它不是全链索引器；遇到超大范围分页、缺 API 权限、跨链桥未公开订单簿或平台内部账本时，会说明缺口并给出下一步需要的 API、订单簿或授权入口。
 
 它不会默认在用户项目里临时创建本地脚本；批量分析会优先调用 skill 自带的 `scripts/` 执行器。
 
@@ -46,7 +46,7 @@ Created by [@SNOWBAR0_0](https://x.com/SNOWBAR0_0).
 
 ## Execution Boundary
 
-This skill includes runnable Python executors for Solana wallet traces, EVM first-layer traces, bridge order lookups, Solana mint top-N participant analysis, and label matching. It is not a full-chain indexer. For very large pagination jobs, missing API permissions, unavailable bridge orderbooks, or platform-internal ledgers, it should explain the gap and state what API, orderbook, or authorized session is needed next.
+This skill includes runnable Python executors for Solana wallet traces, EVM first-layer traces, bridge order lookups, Solana mint top-N participant analysis, OKX Web3 token trading activity, candidate label-address history scans, and label matching. It is not a full-chain indexer. For very large pagination jobs, missing API permissions, unavailable bridge orderbooks, or platform-internal ledgers, it should explain the gap and state what API, orderbook, or authorized session is needed next.
 
 It should not silently create temporary scripts inside a user's project. Bulk analysis should use the bundled `scripts/` executors first.
 
@@ -73,6 +73,7 @@ Recommended optional providers:
 - Alchemy Transfers API for fast EVM address-level scans.
 - Solscan, Helius, or Solana RPC for Solana transaction verification.
 - Public OKX/APIBase and Binance Web3 market endpoints for Solana/EVM token holder snapshots, token metadata, price, market cap, holder count, funding-source hints, and top-holder fallback.
+- Public OKX Web3 trading activity endpoint for Solana token historical DEX trades, including wallet, tx hash, side, amount, value, DEX, tags, and pagination. Binance Web3 `历史成交` pages are useful visible evidence, but are not treated as a stable global historical API until their pagination endpoint is confirmed.
 - Arkham logged-in browser session for entity labels only, especially ChangeNOW, FixedFloat, NEAR Intents, CEX labels, and hot-wallet attribution.
 - Bridge orderbooks for Relay, Mayan, Gas.zip, deBridge, THORChain, and NEAR Intents.
 
@@ -135,10 +136,18 @@ python scripts/trace_bridge_order.py --bridge relay --address <EVM_OR_SOL_ADDRES
 
 python scripts/trace_solana_mint_participants.py --mint <MINT> --hours-after-create 3 --top 50 --label-file labels.xlsx --label-sheets JAK
 
+python scripts/fetch_okx_token_trades.py --mint <MINT> --from-time "2026-06-25 10:00" --to-time "2026-06-25 13:00" --top 50 --label-file labels.xlsx --label-sheets JAK
+
+python scripts/trace_solana_mint_label_history.py --mint <MINT> --hours-after-create 3 --label-file labels.xlsx --label-sheets JAK
+
 python scripts/label_match.py <ADDRESS> --label-file labels.xlsx --label-sheets JAK
 ```
 
 Use `--top 10`, `--top 20`, `--top 50`, or any requested count. The default is 20 only when the user does not specify a count.
+
+Use `fetch_okx_token_trades.py` when the user needs no-key historical DEX trading activity for a Solana token. It uses OKX Web3's public trading-activity endpoint and supports time windows, pagination, top-N participant ranking, and label-sheet matching.
+
+Use `trace_solana_mint_label_history.py` when the user wants to know whether addresses from a label sheet ever participated in a mint window, including wallets that bought/sold and later cleared to zero. It scans candidate owner signatures through Solana RPC and reports historical-only hits separately from current holders. This is candidate verification, not global all-wallet discovery.
 
 ## Project Structure
 
@@ -156,6 +165,8 @@ scripts/
   trace_evm_wallet.py
   trace_bridge_order.py
   trace_solana_mint_participants.py
+  fetch_okx_token_trades.py
+  trace_solana_mint_label_history.py
   label_match.py
 ```
 

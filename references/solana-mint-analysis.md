@@ -15,6 +15,8 @@ top_funders           = wallets that funded participant wallets with SOL/USDC/US
 top_profit_takers     = wallets with largest stable/SOL outflow after selling
 top_flow_value        = wallets ranked by estimated SOL/stable value moved
 top_current_holders   = current holder snapshot ranked by holder percentage or token amount
+okx_token_trades      = wallets ranked from OKX Web3 token trading activity rows
+label_history_hits    = candidate label-sheet wallets that had mint balance deltas in the window, including cleared positions
 ```
 
 Default if the user says "mint top participants fund flow" without a metric:
@@ -51,11 +53,36 @@ For mint participant tasks, do not assume Solscan Pro is mandatory.
 Provider order:
 
 1. Public market holder providers (OKX/APIBase holders plus Binance Web3 meta/dynamic info) for no-key `top_current_holders`, market cap, price, holders count, creation/launch time, funding-source hints, buy/sell counts, PnL fields, and current top-holder label matching.
-2. Helius or another available historical/enhanced transaction index for exact `top_net_buyers` and `top_gross_buy_volume` during a launch window.
-3. Solana RPC verification for signatures, transactions, token balance deltas, owner attribution, and spot checks.
-4. Solscan Pro only when the user explicitly has paid Pro access or forces the Solscan provider. Do not rely on it in default `auto` mode for ordinary users.
+2. OKX Web3 token trading activity for no-key historical DEX trades in a time window. It can return tx hash, wallet, buy/sell side, token size, value, DEX, and tags with pagination.
+3. Helius or another available historical/enhanced transaction index for exact raw transfer coverage when configured.
+4. Solana RPC verification for signatures, transactions, token balance deltas, owner attribution, and spot checks.
+5. Solscan Pro only when the user explicitly has paid Pro access or forces the Solscan provider. Do not rely on it in default `auto` mode for ordinary users.
 
-When using market holder fallback for a historical-window request, clearly state that it is a current holder snapshot rather than a complete historical transfer index. Exclude liquidity pools, authorities, routers, and vault-like holder rows from participant rankings by default, but keep them in evidence as excluded infrastructure.
+When using OKX trading activity, state that it is a market DEX-trade index rather than raw token-transfer truth. Verify important rows through tx hashes on Solana RPC/explorer. When using market holder fallback for a historical-window request, clearly state that it is a current holder snapshot rather than a complete historical transfer index. Exclude liquidity pools, authorities, routers, and vault-like holder rows from participant rankings by default, but keep them in evidence as excluded infrastructure.
+
+## Current Holder Snapshot vs Historical Participation
+
+Do not collapse these into one conclusion:
+
+```text
+Current holder snapshot = who still holds now, with holder ranking and optional buy/sell/funding hints.
+OKX token trades = who bought/sold through indexed DEX activity inside the requested window.
+Historical candidate scan = which provided label/list addresses had mint balance changes inside the requested window.
+```
+
+If a user asks "what if there is no holding but they traded", "all JAK addresses that participated", "cleared positions", or anything equivalent, run the candidate history executor:
+
+```bash
+python scripts/trace_solana_mint_label_history.py --mint <mint> --hours-after-create <hours> --label-file <file> --label-sheets <sheets>
+```
+
+Use it together with `trace_solana_mint_participants.py` when needed:
+
+- `trace_solana_mint_participants.py` answers top-N/current-holder style questions and can use `--provider okx_trades` for no-key historical DEX trades.
+- `fetch_okx_token_trades.py` answers raw OKX token `交易活动` extraction and participant ranking questions.
+- `trace_solana_mint_label_history.py` answers candidate label/list historical participation questions.
+
+State the limitation plainly: the candidate history executor scans the provided owner addresses through Solana RPC. It can catch wallets that traded and later cleared to zero when those owner signatures expose the relevant transactions, but it is not a substitute for a full indexed token-transfer provider for discovering every historical participant globally.
 
 ## JAK Or Label-Sheet Matching
 
@@ -69,6 +96,7 @@ When the user provides a spreadsheet:
 4. Match both wallet owner addresses and token accounts where relevant.
 5. Report intersections separately:
    - participant wallet hit,
+   - historical-only label hit,
    - funder hit,
    - recipient hit,
    - infrastructure/router hit.

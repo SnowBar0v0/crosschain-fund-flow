@@ -1,6 +1,6 @@
 ---
 name: crosschain-fund-flow
-description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, and label matching. Use when the user asks in plain language to trace wallet addresses, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
+description: Trace cryptocurrency fund flows across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, OKX Web3 token trade history, Solana mint label history scans, and label matching. Use when the user asks in plain language to trace wallet addresses, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
 ---
 
 # Crosschain Fund Flow
@@ -39,7 +39,10 @@ Use the best available factual source for the chain, and make the source visible
 
 - Solana:
   - Do not assume Solscan Pro is available; it usually requires a paid key. Use it only when the user explicitly provides paid Pro access, selects Solscan, or sets `CFF_ENABLE_SOLSCAN_PRO_AUTO=1`.
+  - For Solana mint historical DEX trading activity, use the public OKX Web3 `trading-history/filter-list` endpoint through `fetch_okx_token_trades.py` or the `okx_trades` provider in `trace_solana_mint_participants.py`. It can return user wallet, tx hash, side, size, price, value, DEX, tags, and pagination without a user API key.
   - For Solana mint holder/current-position analysis, use public market holder providers (OKX/APIBase and Binance Web3 endpoints bundled in `trace_solana_mint_participants.py`) as the default no-key fallback.
+  - For questions like "JAK addresses that ever traded", "cleared position", "no current holding but had transactions", or "historical label participants", use `trace_solana_mint_label_history.py` against the candidate label/address list. Do not use a current holder snapshot to claim full historical participation.
+  - Binance Web3 token pages may expose visible `历史成交` rows, but until a stable global pagination API is confirmed, treat Binance page data as browser-visible supporting evidence rather than the primary historical source.
   - Use Solana RPC for signatures, transaction details, token account balances, and verification.
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 
@@ -83,6 +86,8 @@ scripts/trace_solana_wallet.py            Solana wallet time-window trace.
 scripts/trace_evm_wallet.py               EVM first-layer wallet trace.
 scripts/trace_bridge_order.py             Relay/Gas.zip bridge order lookup.
 scripts/trace_solana_mint_participants.py Solana mint launch top-N participant analysis.
+scripts/fetch_okx_token_trades.py         OKX Web3 token trading activity and participant ranking.
+scripts/trace_solana_mint_label_history.py Candidate label/address historical mint participation scan.
 scripts/label_match.py                    Address-to-label-file matching.
 ```
 

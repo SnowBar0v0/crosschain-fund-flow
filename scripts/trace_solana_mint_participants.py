@@ -24,6 +24,7 @@ from common import (
     unwrap_items,
     unwrap_object,
 )
+from fetch_okx_token_trades import fetch_okx_trades, rank_okx_trade_participants
 
 API_BASE = "https://web3.oyuzh.com/priapi/v1/dx/market/v2"
 BINANCE_META_URL = "https://web3.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/dex/market/token/meta/info"
@@ -439,7 +440,7 @@ def main() -> None:
     parser.add_argument("--timezone", default="Asia/Shanghai")
     parser.add_argument("--top", type=int, default=20)
     parser.add_argument("--metric", choices=["top_net_buyers", "top_gross_buy_volume", "top_current_holders"], default="top_net_buyers")
-    parser.add_argument("--provider", choices=["auto", "solscan", "market_holders"], default="auto")
+    parser.add_argument("--provider", choices=["auto", "solscan", "okx_trades", "market_holders"], default="auto")
     parser.add_argument("--market-chain-id", type=int, default=SOL_CHAIN_ID)
     parser.add_argument("--include-infrastructure", action="store_true", help="Include liquidity pools, authority accounts, routers, and vault-like holders in holder rankings.")
     parser.add_argument("--max-pages", type=int, default=20)
@@ -492,6 +493,43 @@ def main() -> None:
     else:
         ranked = []
 
+    if not ranked and args.provider in ("auto", "okx_trades") and args.metric != "top_current_holders":
+        try:
+            okx_rows, okx_paging, okx_warnings = fetch_okx_trades(
+                args.mint,
+                chain_id=args.market_chain_id,
+                start=start,
+                end=end,
+                page_size=min(max(args.page_size, 1), 30),
+                max_pages=args.max_pages,
+                timezone=args.timezone,
+            )
+            warnings.extend(okx_warnings)
+            ranked = rank_okx_trade_participants(okx_rows, args.metric)
+            raw_transfers = okx_rows
+            transfers = [
+                {
+                    "signature": row.get("tx_hash"),
+                    "block_time": row.get("timestamp"),
+                    "time": row.get("time"),
+                    "from": row.get("user_address") if row.get("side") == "sell" else None,
+                    "to": row.get("user_address") if row.get("side") == "buy" else None,
+                    "mint": args.mint,
+                    "amount": row.get("token_amount"),
+                    "raw": row,
+                }
+                for row in okx_rows
+            ]
+            source = "okx_trades"
+            provider_attempts.append({"provider": "okx_trades", "ok": bool(ranked), "rows": len(okx_rows), "paging": okx_paging})
+            if not ranked:
+                warnings.append("OKX trading history returned rows but no positive-ranked participant for the requested metric.")
+        except Exception as exc:
+            provider_attempts.append({"provider": "okx_trades", "ok": False, "error": str(exc)[:500]})
+            if args.provider == "okx_trades":
+                raise
+            warnings.append(f"OKX trading history provider failed; falling back to market holder snapshot: {str(exc)[:200]}")
+
     if not ranked and args.provider in ("auto", "market_holders"):
         token_info, raw_holders, holder_warnings = fetch_market_holders(args.mint, args.market_chain_id)
         warnings.extend(holder_warnings)
@@ -513,12 +551,12 @@ def main() -> None:
         "provider_attempts": provider_attempts,
         "window": {"from": start, "to": end, "from_time": format_time(start), "to_time": format_time(end)},
         "summary": {
-            "transfer_count": len(transfers) if source == "solscan" else None,
+            "transfer_count": len(transfers) if source in ("solscan", "okx_trades") else None,
             "holder_snapshot_count": len(raw_holders) if source == "market_holders" else None,
             "excluded_infrastructure_count": len(excluded_holders) if source == "market_holders" else None,
             "participant_count": len(ranked),
             "top_count": len(top),
-            "status": "historical_transfer_index" if source == "solscan" else "holder_snapshot_fallback",
+            "status": "historical_transfer_index" if source in ("solscan", "okx_trades") else "holder_snapshot_fallback",
         },
         "token_info": token_info,
         "top": top,

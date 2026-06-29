@@ -23,7 +23,7 @@ Internally normalize every request into:
 
 ```json
 {
-  "task_type": "solana_wallet | evm_wallet | bridge_order | solana_mint_participants | label_match | manual_analysis",
+  "task_type": "solana_wallet | evm_wallet | bridge_order | solana_mint_participants | okx_token_trades | solana_mint_label_history | label_match | manual_analysis",
   "inputs": {
     "addresses": [],
     "tx_hashes": [],
@@ -116,6 +116,7 @@ Provider:
 - Use `--provider solscan` only when the user explicitly says they have paid Pro access or wants to force Solscan. `auto` may try paid Pro only when `CFF_ENABLE_SOLSCAN_PRO_AUTO=1` is set.
 - Fall back to market holder snapshot when the task can be answered or partially answered from holder/current-position data.
 - If the user specifically asks for historical net buyers in an exact launch window, label market holder fallback as approximate/current snapshot coverage.
+- In `auto`, ordinary no-key historical DEX trade coverage should try OKX trading activity before falling back to current holder snapshots. Use `--provider okx_trades` to force that path.
 
 Window:
 
@@ -127,6 +128,61 @@ Labels:
 
 - "intersect with JAK sheet" => include `--label-sheets JAK`.
 - "exchange and router sheets" => include the exact workbook and the corresponding `--label-sheets` if available.
+
+### OKX Token Trades
+
+Trigger when the request asks for a Solana token's historical DEX trades, transaction activity, OKX `交易活动`, no-key token trade history, top buyers from token activity, or all wallets that traded in a time window.
+
+Executor:
+
+```bash
+python scripts/fetch_okx_token_trades.py --mint <mint> --from-time <from> --to-time <to> --top <n>
+```
+
+Use this executor when the user specifically points to an OKX Web3 token page or asks whether the page's `交易活动` can be used as a transaction source. It returns wallet addresses, tx hashes, buy/sell side, token amount, value, DEX, tags, and pagination.
+
+Use `trace_solana_mint_participants.py --provider okx_trades` when the requested output is the normal mint top-N participant report:
+
+```bash
+python scripts/trace_solana_mint_participants.py --mint <mint> --from-time <from> --to-time <to> --top <n> --provider okx_trades
+```
+
+If the user mentions Binance Web3 `历史成交`, inspect it as browser-visible supporting evidence, but do not rely on it as the main historical index until a stable global pagination API is confirmed.
+
+### Solana Mint Label History
+
+Trigger when the user asks whether addresses from a label sheet or candidate list ever participated in a mint, including phrases such as:
+
+```text
+JAK 里所有曾经交易过的地址
+没持仓但是有过交易
+买过卖过但清仓了
+窗口内参与过但现在余额为 0
+historical participants from this label sheet
+cleared positions from the candidate list
+```
+
+Executor:
+
+```bash
+python scripts/trace_solana_mint_label_history.py --mint <mint> --hours-after-create <hours> --label-file <file> --label-sheets <sheets>
+```
+
+Use this executor to answer candidate-list history questions. It uses Solana RPC to scan candidate owner-address signatures and compare token balance deltas for the mint. It can find addresses that are no longer current holders, but it is not a global all-wallet top-N indexer.
+
+If the user asks for both global top-N and label-sheet historical participation, run both:
+
+```bash
+python scripts/trace_solana_mint_participants.py --mint <mint> --hours-after-create <hours> --top <n> --provider auto --label-file <file> --label-sheets <sheets>
+python scripts/trace_solana_mint_label_history.py --mint <mint> --hours-after-create <hours> --label-file <file> --label-sheets <sheets>
+```
+
+Report them as two separate coverage layers:
+
+```text
+Top-N/current-holder coverage: ranked participant or holder result.
+Label-history coverage: candidate label addresses that actually had mint balance deltas in the window.
+```
 
 ### Label Match
 
