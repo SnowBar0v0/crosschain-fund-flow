@@ -1,6 +1,6 @@
 ---
 name: crosschain-fund-flow
-description: Trace cryptocurrency fund flows and related-wallet clusters across Solana, EVM chains, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, cross-chain multi-hop cluster expansion, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, OKX Web3 token trade history, Solana mint label history scans, and label matching. Use when the user asks in plain language to trace wallet addresses, expand a seed wallet cluster, find related wallets, identify common funders/recipients, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
+description: Trace cryptocurrency fund flows and related-wallet clusters across Solana, EVM chains including Robinhood Chain, bridge orderbooks, exchanges, and platform ledgers with bundled Python executors for Solana wallet traces, EVM first-layer traces, cross-chain multi-hop cluster expansion, Relay/Gas.zip bridge lookup, Solana mint top-N participant analysis, OKX Web3 token trade history, Solana mint label history scans, and label matching. Use when the user asks in plain language to trace wallet addresses, expand a seed wallet cluster, find related wallets, identify common funders/recipients, analyze Solana or EVM transfers, follow funds through Relay/Mayan/Gas.zip/deBridge/Across/THORChain/NEAR Intents/ChangeNOW/FixedFloat, explain unusual transactions, identify where funds stopped, or run cross-chain fund-flow workflows with API keys and labels.
 ---
 
 # Crosschain Fund Flow
@@ -34,6 +34,7 @@ This skill includes runnable executors for the common trace paths, but it is not
    - Report formatting: read `references/report-style.md`.
    - Bulk data processing, top-N analysis, or local scripts: read `references/execution-boundaries.md`.
    - Solana mint launch / top-N participant / token-owner analysis: read `references/solana-mint-analysis.md`.
+   - Robinhood Chain network, explorer, canonical token, and provider details: read `references/robinhood-chain.md`.
 
 ## Data Source Order
 
@@ -50,6 +51,7 @@ Use the best available factual source for the chain, and make the source visible
   - Always inspect token account owners; a Solana owner address may not appear in later token-account signatures.
 
 - EVM:
+  - Robinhood Chain mainnet (`4663`) is included in the default EVM scan. Use its public Blockscout instance without an API key; testnet (`46630`) is supported when explicitly requested but is not scanned by default.
   - For token-level DEX trading activity on OKX Web3-supported EVM chains, use `fetch_okx_token_trades.py` with the EVM `--chain-id` and contract address. This is the same OKX `trading-history/filter-list` source used for Solana; Solana uses `chainId=501`, while EVM chains generally use their normal EIP-155 chain IDs such as Ethereum `1`, BNB Chain `56`, Base `8453`, Arbitrum `42161`, Optimism `10`, Polygon `137`, and Avalanche `43114`.
   - Prefer Etherscan V2 for supported chains.
   - Use Blockscout PRO for chains Etherscan free tier does not cover or when Blockscout has better decoded data.

@@ -4,14 +4,20 @@
 from __future__ import annotations
 
 from expand_crosschain_cluster import (
+    CHAIN_NAMES,
     ClusterGraph,
+    DEFAULT_EVM_CHAIN_IDS,
     SOLANA_CHAIN,
     analyze_common_patterns,
     classify_evm_action,
     classify_solana_transaction,
     node_id,
     solana_edges_from_transaction,
+    chain_name,
 )
+from evm_networks import ROBINHOOD_CANONICAL_TOKENS, robinhood_blockscout_api
+from trace_evm_wallet import provider_api_key, resolve_provider
+from trace_bridge_order import relay_lookup
 
 
 SEED_A = "Seed111111111111111111111111111111111111111"
@@ -134,6 +140,33 @@ def test_evm_approve_is_non_scoring_contract_interaction():
     assert classification["eligible_for_scoring"] is False
 
 
+def test_robinhood_mainnet_is_in_default_scan_and_named():
+    assert 4663 in DEFAULT_EVM_CHAIN_IDS
+    assert CHAIN_NAMES[4663] == "robinhood"
+    assert chain_name(4663) == "robinhood"
+    assert chain_name(46630) == "robinhood_testnet"
+    assert 46630 not in DEFAULT_EVM_CHAIN_IDS
+
+
+def test_robinhood_uses_public_blockscout_without_key():
+    assert resolve_provider("auto", 4663) == "robinhood_blockscout"
+    assert provider_api_key("robinhood_blockscout") == ""
+    assert robinhood_blockscout_api(4663) == "https://robinhoodchain.blockscout.com/api"
+    assert ROBINHOOD_CANONICAL_TOKENS[4663]["USDG"].lower() == "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+
+
+def test_relay_limit_is_capped_at_public_api_max(monkeypatch):
+    captured = {}
+
+    def fake_http_json(url, params):
+        captured.update(params)
+        return {"requests": []}
+
+    monkeypatch.setattr("trace_bridge_order.http_json", fake_http_json)
+    relay_lookup(None, "0x44fbe0006661d6d17188f1f6d42b32b5577179f7", 100)
+    assert captured["limit"] == 50
+
+
 def test_unknown_non_core_program_is_not_promoted_to_transfer():
     sample = tx(
         [{"pubkey": SEED_A, "signer": True}, {"pubkey": TARGET, "signer": False}],
@@ -209,6 +242,8 @@ if __name__ == "__main__":
         test_plain_spl_transfer_scores_as_token_owner_transfer,
         test_solana_close_account_is_non_scoring_rent_noise,
         test_evm_approve_is_non_scoring_contract_interaction,
+        test_robinhood_mainnet_is_in_default_scan_and_named,
+        test_robinhood_uses_public_blockscout_without_key,
         test_unknown_non_core_program_is_not_promoted_to_transfer,
         test_multiple_seed_swaps_same_pool_do_not_create_candidate,
         test_multiple_seed_transfers_to_same_wallet_remain_high_signal,

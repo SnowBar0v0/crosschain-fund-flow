@@ -42,6 +42,8 @@ Needed actions: `txlist`, `tokentx`, `txlistinternal`, logs, receipts/proxy wher
 
 Cluster expansion uses these account actions for EVM multi-hop graph edges. If the user asks for EVM-side or cross-chain cluster expansion and no Etherscan/Blockscout key is configured, report `not_closed_insufficient_api_coverage` and ask only for the missing EVM key.
 
+Robinhood Chain is the exception: mainnet (`4663`) and testnet (`46630`) use their public per-instance Blockscout APIs and do not require an API key. Mainnet is part of the default EVM scan; testnet must be requested explicitly.
+
 Ask the user to create a key from the Etherscan API dashboard. Remind them that the free tier covers selected chains only; BNB/Base/OP/Avalanche may require another provider or a paid tier depending on the current official list.
 
 ### Blockscout PRO API
@@ -68,6 +70,8 @@ https://base-mainnet.g.alchemy.com/v2/<key>
 https://arb-mainnet.g.alchemy.com/v2/<key>
 https://opt-mainnet.g.alchemy.com/v2/<key>
 https://polygon-mainnet.g.alchemy.com/v2/<key>
+https://robinhood-mainnet.g.alchemy.com/v2/<key>
+https://robinhood-testnet.g.alchemy.com/v2/<key>
 ```
 
 Use RPC/receipt calls for single-transaction verification.

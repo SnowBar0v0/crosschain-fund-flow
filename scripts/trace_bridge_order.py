@@ -7,6 +7,7 @@ import argparse
 from typing import Any
 
 from common import add_common_output_args, command_error, format_time, http_json, print_or_write, shorten
+from evm_networks import chain_name
 
 
 def summarize_changes(tx: dict[str, Any]) -> list[dict[str, Any]]:
@@ -26,7 +27,7 @@ def summarize_changes(tx: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def relay_lookup(tx_hash: str | None, address: str | None, limit: int) -> dict[str, Any]:
-    params: dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {"limit": min(max(limit, 1), 50)}
     if tx_hash:
         params["hash"] = tx_hash
     elif address:
@@ -44,6 +45,7 @@ def relay_lookup(tx_hash: str | None, address: str | None, limit: int) -> dict[s
                 {
                     "hash": tx.get("hash"),
                     "chain_id": tx.get("chainId"),
+                    "chain": chain_name(tx.get("chainId")) if str(tx.get("chainId") or "").isdigit() else "unknown",
                     "timestamp": tx.get("timestamp"),
                     "time": format_time(tx.get("timestamp")),
                     "status": tx.get("status"),
@@ -56,6 +58,7 @@ def relay_lookup(tx_hash: str | None, address: str | None, limit: int) -> dict[s
                 {
                     "hash": tx.get("hash"),
                     "chain_id": tx.get("chainId"),
+                    "chain": chain_name(tx.get("chainId")) if str(tx.get("chainId") or "").isdigit() else "unknown",
                     "timestamp": tx.get("timestamp"),
                     "time": format_time(tx.get("timestamp")),
                     "status": tx.get("status"),
@@ -104,7 +107,7 @@ def build_markdown(result: dict[str, Any]) -> str:
         for name in ("in_txs", "out_txs"):
             lines.append(f"- {name}:")
             for tx in order.get(name) or []:
-                lines.append(f"  - `{shorten(str(tx.get('hash')))} ` chain `{tx.get('chain_id')}` status `{tx.get('status')}` time `{tx.get('time')}`")
+                lines.append(f"  - `{shorten(str(tx.get('hash')))} ` chain `{tx.get('chain')}` (`{tx.get('chain_id')}`) status `{tx.get('status')}` time `{tx.get('time')}`")
     return "\n".join(lines) + "\n"
 
 

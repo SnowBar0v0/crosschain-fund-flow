@@ -27,22 +27,12 @@ from common import (
     solana_rpc,
 )
 from trace_bridge_order import relay_lookup
-from trace_evm_wallet import fetch_account_action
+from trace_evm_wallet import fetch_account_action, provider_api_key, resolve_provider
+from evm_networks import CHAIN_NAMES, DEFAULT_EVM_CHAIN_IDS, chain_name
 
 
 DEFAULT_RPC = "https://api.mainnet-beta.solana.com"
-DEFAULT_EVM_CHAIN_IDS = [1, 56, 8453, 42161, 10, 137, 43114]
 SOLANA_CHAIN = "solana"
-CHAIN_NAMES = {
-    1: "ethereum",
-    10: "optimism",
-    56: "bsc",
-    137: "polygon",
-    8453: "base",
-    42161: "arbitrum",
-    43114: "avalanche",
-    792703809: "solana",
-}
 
 SOLANA_PROGRAMS = {
     "11111111111111111111111111111111",
@@ -75,6 +65,8 @@ KNOWN_EVM_SERVICE_ADDRESSES = {
     "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
     "0x555ce236c0220695b68341bc48c68d52210cc35b",
     "0xe547d2eed6dd60796013b485d284c17da1194c82",
+    "0xd29c85f15df544ba632c9e25829fd29d767d7978",
+    "0xb92fe925dc43a0ecde6c8b1a2709c170ec4ff4f",
 }
 
 SERVICE_TERMS = (
@@ -201,10 +193,6 @@ def node_id(chain: str, address: str) -> str:
 
 def normalize_address(address: str) -> str:
     return address.lower() if address.startswith("0x") else address
-
-
-def chain_name(chain_id: int) -> str:
-    return CHAIN_NAMES.get(int(chain_id), f"evm_{chain_id}")
 
 
 def confidence(score: int) -> str:
@@ -1011,22 +999,8 @@ def solana_edges_for_address(
     return edges
 
 
-def evm_api_key(provider: str) -> str | None:
-    if provider == "etherscan":
-        return os.getenv("ETHERSCAN_API_KEY")
-    if provider == "blockscout":
-        return os.getenv("BLOCKSCOUT_API_KEY")
-    return None
-
-
 def choose_evm_provider(requested: str) -> str | None:
-    if requested != "auto":
-        return requested
-    if os.getenv("ETHERSCAN_API_KEY"):
-        return "etherscan"
-    if os.getenv("BLOCKSCOUT_API_KEY"):
-        return "blockscout"
-    return None
+    return requested
 
 
 def _evm_value_amount(row: dict[str, Any]) -> float:
@@ -1095,18 +1069,21 @@ def evm_edges_for_address(
     limit: int,
     labels: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
-    key = evm_api_key(provider)
-    if not key:
-        raise ToolError(f"Missing {provider.upper()} API key for EVM cluster expansion.")
+    resolved_provider = resolve_provider(provider, chain_id)
+    if resolved_provider is None:
+        raise ToolError("Missing ETHERSCAN_API_KEY or BLOCKSCOUT_API_KEY for this EVM chain.")
+    key = provider_api_key(resolved_provider)
+    if resolved_provider != "robinhood_blockscout" and not key:
+        raise ToolError(f"Missing {resolved_provider.upper()} API key for EVM cluster expansion.")
     chain = chain_name(chain_id)
     out = []
     actions = {"evm_native": "txlist", "evm_erc20": "tokentx", "evm_internal": "txlistinternal"}
     address_l = address.lower()
     for edge_type, action in actions.items():
         try:
-            rows = fetch_account_action(provider, chain_id, action, address, key, limit)
+            rows = fetch_account_action(resolved_provider, chain_id, action, address, key, limit)
         except Exception as exc:
-            raise ToolError(f"{provider} {action} failed for {address} on {chain_id}: {exc}") from exc
+            raise ToolError(f"{resolved_provider} {action} failed for {address} on {chain_id}: {exc}") from exc
         for row in rows:
             try:
                 ts = int(row.get("timeStamp") or row.get("timestamp") or 0)
@@ -1143,11 +1120,11 @@ def evm_edges_for_address(
                     "time": format_time(ts) if ts else None,
                     "type": classification["edge_type"],
                     "intent": classification["intent"],
-                    "source": provider,
+                    "source": resolved_provider,
                     "score": 0,
                     "eligible_for_scoring": classification["eligible_for_scoring"],
                     "classification": classification,
-                    "evidence": f"{provider} {action} {shorten(row.get('hash'))}: {classification['reason']}",
+                    "evidence": f"{resolved_provider} {action} {shorten(row.get('hash'))}: {classification['reason']}",
                 }
             )
     return out
@@ -1433,8 +1410,8 @@ def main() -> None:
     parser.add_argument("--min-score", type=int, default=5)
     parser.add_argument("--label-file")
     parser.add_argument("--label-sheets")
-    parser.add_argument("--evm-chain-ids", default="1,56,8453,42161,10,137,43114")
-    parser.add_argument("--evm-provider", choices=["auto", "etherscan", "blockscout"], default="auto")
+    parser.add_argument("--evm-chain-ids", default=",".join(str(x) for x in DEFAULT_EVM_CHAIN_IDS))
+    parser.add_argument("--evm-provider", choices=["auto", "etherscan", "blockscout", "robinhood_blockscout"], default="auto")
     parser.add_argument("--include-low-confidence", action="store_true")
     parser.add_argument("--stop-at-platform", type=bool_arg, default=True)
     parser.add_argument("--max-edges-per-node", type=int, default=100)
@@ -1525,9 +1502,6 @@ def main() -> None:
                         queue.append((SOLANA_CHAIN, neighbor, hop + 1))
             else:
                 if hop >= args.max_hop_evm:
-                    continue
-                if evm_provider is None:
-                    graph.warnings.append("EVM expansion skipped: missing ETHERSCAN_API_KEY or BLOCKSCOUT_API_KEY.")
                     continue
                 chain_id = next((cid for cid, name in CHAIN_NAMES.items() if name == chain), None)
                 if chain_id is None or chain_id == 792703809:

@@ -144,7 +144,7 @@ Defaults:
 post-window-hours: 72
 max-hop-solana: 2 for MVP unless user asks deeper
 max-hop-evm: 1 for MVP unless user asks deeper and APIs are configured
-evm-chain-ids: 1,56,8453,42161,10,137,43114
+evm-chain-ids: 1,56,8453,42161,10,137,43114,4663
 min-score: 5
 stop-at-platform: true
 ```
@@ -217,6 +217,7 @@ Arbitrum: 42161
 Optimism: 10
 Polygon: 137
 Avalanche: 43114
+Robinhood Chain: 4663
 ```
 
 If the user gives an EVM contract and chain name, infer `--chain-id` from the chain name. If the chain cannot be inferred, ask for the chain. The OKX endpoint accepts the same request shape; changing `chainId` is normally enough.
